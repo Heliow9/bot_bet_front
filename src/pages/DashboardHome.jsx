@@ -80,8 +80,8 @@ export default function DashboardHome() {
           <button className="action-card" onClick={() => navigate("/results")}>
             🏁 Ver resultados
           </button>
-          <button className="action-card">💰 Mercado / CLV</button>
-          <button className="action-card">🤖 Status do modelo</button>
+           <button className="action-card" onClick={() => navigate("/market")}>💰 Mercado / CLV</button>
+           <button className="action-card" onClick={() => navigate("/model")}>🤖 Status do modelo</button>
         </section>
 
         <section className="panel">
