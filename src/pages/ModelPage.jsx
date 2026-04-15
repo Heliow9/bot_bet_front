@@ -1,4 +1,4 @@
- import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 import Sidebar from "../components/Sidebar";
@@ -19,8 +19,9 @@ export default function ModelPage() {
       const response = await api.get("/dashboard/model-performance");
       setData(response.data);
     } catch (err) {
-      const status = err?.response?.status;
+      console.error("Erro ao carregar model performance:", err);
 
+      const status = err?.response?.status;
       if (status === 401 || status === 403) {
         localStorage.removeItem("access_token");
         localStorage.removeItem("user");
@@ -49,43 +50,13 @@ export default function ModelPage() {
     hits: 0,
     misses: 0,
     accuracy: 0,
+    profit: 0,
+    stake: 0,
+    roi: 0,
   };
 
   const byConfidence = data?.by_confidence || [];
   const byLeague = data?.by_league || [];
-
-  const bestLeague = useMemo(() => {
-    if (!byLeague.length) return null;
-    return [...byLeague].sort((a, b) => (b.accuracy || 0) - (a.accuracy || 0))[0];
-  }, [byLeague]);
-
-  const worstLeague = useMemo(() => {
-    if (!byLeague.length) return null;
-    return [...byLeague].sort((a, b) => (a.accuracy || 0) - (b.accuracy || 0))[0];
-  }, [byLeague]);
-
-  const bestConfidence = useMemo(() => {
-    if (!byConfidence.length) return null;
-    return [...byConfidence].sort((a, b) => (b.accuracy || 0) - (a.accuracy || 0))[0];
-  }, [byConfidence]);
-
-  const insightMessage = useMemo(() => {
-    const acc = Number(summary.accuracy || 0);
-
-    if (summary.resolved_total === 0) {
-      return "Ainda não há partidas suficientes resolvidas para avaliar a consistência do modelo.";
-    }
-
-    if (acc < 0.4) {
-      return "O modelo ainda está fraco. O ideal agora é restringir ligas, revisar heurísticas e evitar escalar stake.";
-    }
-
-    if (acc < 0.55) {
-      return "O modelo está mediano. Já dá para observar padrões, mas ainda exige gestão de risco e filtros melhores.";
-    }
-
-    return "O modelo está mostrando consistência. Agora vale aprofundar análise por liga, confiança e ROI.";
-  }, [summary]);
 
   return (
     <div className="app-layout">
@@ -108,14 +79,6 @@ export default function ModelPage() {
           </div>
         ) : (
           <>
-            <div className="model-insight">
-              <div className="model-insight__icon">🧠</div>
-              <div className="model-insight__content">
-                <strong>Leitura do modelo</strong>
-                <p>{insightMessage}</p>
-              </div>
-            </div>
-
             <section className="stats-grid">
               <StatCard title="Jogos resolvidos" value={summary.resolved_total} />
               <StatCard title="Acertos" value={summary.hits} />
@@ -126,83 +89,92 @@ export default function ModelPage() {
               />
             </section>
 
-            <section className="model-highlight-grid">
-              <div className="model-highlight">
-                <div className="model-highlight__label">Melhor liga</div>
-                <div className="model-highlight__value model-highlight__value--good">
-                  {bestLeague ? bestLeague.league_name : "-"}
-                </div>
-              </div>
-
-              <div className="model-highlight">
-                <div className="model-highlight__label">Pior liga</div>
-                <div className="model-highlight__value model-highlight__value--bad">
-                  {worstLeague ? worstLeague.league_name : "-"}
-                </div>
-              </div>
-
-              <div className="model-highlight">
-                <div className="model-highlight__label">Melhor confiança</div>
-                <div className="model-highlight__value model-highlight__value--mid">
-                  {bestConfidence ? bestConfidence.confidence : "-"}
-                </div>
-              </div>
+            <section className="stats-grid">
+              <StatCard
+                title="Lucro total"
+                value={formatMoney(summary.profit)}
+              />
+              <StatCard
+                title="Stake total"
+                value={formatMoney(summary.stake)}
+              />
+              <StatCard
+                title="ROI geral"
+                value={`${(Number(summary.roi || 0) * 100).toFixed(2)}%`}
+              />
+              <StatCard
+                title="Leitura"
+                value={buildPerformanceLabel(summary.roi)}
+                subtitle="Baseado no retorno financeiro"
+              />
             </section>
 
             <section className="panel panel--spaced">
               <div className="panel__header">
                 <div>
                   <h2>Performance por confiança</h2>
-                  <p>Veja rapidamente em quais faixas o modelo está mais confiável.</p>
+                  <p>
+                    Veja como o modelo performa em alta, média e baixa confiança,
+                    incluindo acurácia, lucro e ROI.
+                  </p>
                 </div>
               </div>
 
               <div className="confidence-grid">
-                {byConfidence.map((item) => (
-                  <div key={item.confidence} className="confidence-card">
-                    <div className="confidence-card__top">
-                      <div className="confidence-card__title">
-                        Confiança {item.confidence}
-                      </div>
-                      <span className={`pill pill--${normalizeConfidence(item.confidence)}`}>
-                        {item.confidence}
-                      </span>
-                    </div>
-
-                    <div className="confidence-card__accuracy">
-                      {(Number(item.accuracy || 0) * 100).toFixed(1)}
-                      <small>%</small>
-                    </div>
-
-                    <div className="confidence-card__description">
-                      {buildConfidenceMessage(item)}
-                    </div>
-
-                    <div className="confidence-card__stats">
-                      <div className="confidence-stat">
-                        <div className="confidence-stat__label">Total</div>
-                        <div className="confidence-stat__value">{item.total}</div>
+                {byConfidence.length === 0 ? (
+                  <div className="table-empty">
+                    Ainda não há dados suficientes por confiança.
+                  </div>
+                ) : (
+                  byConfidence.map((item) => (
+                    <div
+                      key={item.confidence}
+                      className={`confidence-card confidence-card--${normalizeConfidence(
+                        item.confidence
+                      )}`}
+                    >
+                      <div className="confidence-card__top">
+                        <span className={`pill pill--${normalizeConfidence(item.confidence)}`}>
+                          {capitalizeConfidence(item.confidence)}
+                        </span>
+                        <strong className="confidence-card__roi">
+                          {(Number(item.roi || 0) * 100).toFixed(2)}%
+                        </strong>
                       </div>
 
-                      <div className="confidence-stat">
-                        <div className="confidence-stat__label">Acertos</div>
-                        <div className="confidence-stat__value">{item.hits}</div>
+                      <div className="confidence-card__main">
+                        <div className="confidence-card__metric">
+                          <span>Acurácia</span>
+                          <strong>{(Number(item.accuracy || 0) * 100).toFixed(2)}%</strong>
+                        </div>
+
+                        <div className="confidence-card__metric">
+                          <span>Lucro</span>
+                          <strong>{formatMoney(item.profit)}</strong>
+                        </div>
                       </div>
 
-                      <div className="confidence-stat">
-                        <div className="confidence-stat__label">Erros</div>
-                        <div className="confidence-stat__value">{item.misses}</div>
-                      </div>
-
-                      <div className="confidence-stat">
-                        <div className="confidence-stat__label">Acurácia</div>
-                        <div className="confidence-stat__value">
-                          {(Number(item.accuracy || 0) * 100).toFixed(1)}%
+                      <div className="confidence-card__footer">
+                        <div>
+                          <small>Total</small>
+                          <strong>{item.total}</strong>
+                        </div>
+                        <div>
+                          <small>Hits</small>
+                          <strong>{item.hits}</strong>
+                        </div>
+                        <div>
+                          <small>Misses</small>
+                          <strong>{item.misses}</strong>
+                        </div>
+                        <div>
+                          <small>Stake</small>
+                          <strong>{formatMoney(item.stake)}</strong>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </section>
 
@@ -210,7 +182,9 @@ export default function ModelPage() {
               <div className="panel__header">
                 <div>
                   <h2>Performance por liga</h2>
-                  <p>Identifique rapidamente onde o modelo está mais forte e onde precisa melhorar.</p>
+                  <p>
+                    Compare acurácia, lucro e ROI por campeonato.
+                  </p>
                 </div>
               </div>
 
@@ -223,13 +197,16 @@ export default function ModelPage() {
                       <th>Acertos</th>
                       <th>Erros</th>
                       <th>Acurácia</th>
+                      <th>Lucro</th>
+                      <th>Stake</th>
+                      <th>ROI</th>
                     </tr>
                   </thead>
 
                   <tbody>
                     {byLeague.length === 0 ? (
                       <tr>
-                        <td colSpan="5" className="table-empty">
+                        <td colSpan="8" className="table-empty">
                           Ainda não há dados suficientes por liga.
                         </td>
                       </tr>
@@ -240,9 +217,12 @@ export default function ModelPage() {
                           <td>{item.total}</td>
                           <td>{item.hits}</td>
                           <td>{item.misses}</td>
+                          <td>{(Number(item.accuracy || 0) * 100).toFixed(2)}%</td>
+                          <td>{formatMoney(item.profit)}</td>
+                          <td>{formatMoney(item.stake)}</td>
                           <td>
-                            <span className={`pill ${getAccuracyClass(item.accuracy)}`}>
-                              {(Number(item.accuracy || 0) * 100).toFixed(1)}%
+                            <span className={getRoiClass(item.roi)}>
+                              {(Number(item.roi || 0) * 100).toFixed(2)}%
                             </span>
                           </td>
                         </tr>
@@ -266,28 +246,30 @@ function normalizeConfidence(value) {
   return "low";
 }
 
-function getAccuracyClass(acc) {
-  const value = Number(acc || 0);
-  if (value >= 0.6) return "pill--good";
-  if (value >= 0.45) return "pill--mid";
-  return "pill--bad";
+function capitalizeConfidence(value) {
+  const text = String(value || "").toLowerCase();
+  if (text.includes("alta")) return "Alta";
+  if (text.includes("média") || text.includes("media")) return "Média";
+  return "Baixa";
 }
 
-function buildConfidenceMessage(item) {
-  const acc = Number(item?.accuracy || 0);
-  const total = Number(item?.total || 0);
+function formatMoney(value) {
+  const number = Number(value || 0);
+  const signal = number > 0 ? "+" : "";
+  return `${signal}${number.toFixed(2)}u`;
+}
 
-  if (total === 0) {
-    return "Ainda não há volume suficiente para avaliar essa faixa.";
-  }
+function buildPerformanceLabel(roi) {
+  const value = Number(roi || 0);
+  if (value > 0.1) return "Excelente";
+  if (value > 0) return "Positivo";
+  if (value === 0) return "Neutro";
+  return "Negativo";
+}
 
-  if (acc >= 0.6) {
-    return "Faixa promissora. Vale acompanhar de perto para priorização futura.";
-  }
-
-  if (acc >= 0.45) {
-    return "Faixa estável, mas ainda pede cautela na leitura.";
-  }
-
-  return "Faixa fraca no momento. Ideal revisar filtros ou reduzir exposição.";
+function getRoiClass(roi) {
+  const value = Number(roi || 0);
+  if (value > 0) return "text-positive";
+  if (value < 0) return "text-negative";
+  return "text-neutral";
 }

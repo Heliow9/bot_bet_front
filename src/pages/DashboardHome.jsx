@@ -22,7 +22,8 @@ export default function DashboardHome() {
 
       setSummary(summaryRes.data);
       setPredictions(predictionsRes.data.items || []);
-    } catch {
+    } catch (error) {
+      console.error("Erro ao carregar dashboard:", error);
       localStorage.removeItem("access_token");
       localStorage.removeItem("user");
       navigate("/login");
@@ -60,7 +61,7 @@ export default function DashboardHome() {
           <div className="panel__header">
             <div>
               <h2>Resumo geral</h2>
-              <p>Visão consolidada de toda a base.</p>
+              <p>Visão consolidada de toda a base do sistema.</p>
             </div>
           </div>
 
@@ -85,10 +86,38 @@ export default function DashboardHome() {
         <section className="panel panel--spaced">
           <div className="panel__header">
             <div>
+              <h2>Financeiro geral</h2>
+              <p>Resultados financeiros considerando stake fixa de 1 unidade.</p>
+            </div>
+          </div>
+
+          <section className="stats-grid">
+            <StatCard
+              title="Lucro acumulado"
+              value={formatMoney(summary?.profit ?? 0)}
+              subtitle={`${summary?.roi_items ?? 0} entradas com odd válida`}
+            />
+            <StatCard
+              title="Stake total"
+              value={formatMoney(summary?.stake ?? 0)}
+            />
+            <StatCard
+              title="ROI"
+              value={`${((summary?.roi ?? 0) * 100).toFixed(2)}%`}
+            />
+            <StatCard
+              title="ROI válido"
+              value={summary?.roi_items ?? 0}
+              subtitle="Apostas consideradas no cálculo"
+            />
+          </section>
+        </section>
+
+        <section className="panel panel--spaced">
+          <div className="panel__header">
+            <div>
               <h2>Resumo de hoje</h2>
-              <p>
-                Baseado na data de resolução do jogo ({`checked_at`}).
-              </p>
+              <p>Baseado na data real de fechamento da previsão ({`checked_at`}).</p>
             </div>
           </div>
 
@@ -102,6 +131,36 @@ export default function DashboardHome() {
             <StatCard
               title="Acurácia hoje"
               value={`${((summary?.today_accuracy ?? 0) * 100).toFixed(2)}%`}
+            />
+          </section>
+        </section>
+
+        <section className="panel panel--spaced">
+          <div className="panel__header">
+            <div>
+              <h2>Financeiro de hoje</h2>
+              <p>Lucro e ROI apenas das previsões resolvidas hoje.</p>
+            </div>
+          </div>
+
+          <section className="stats-grid">
+            <StatCard
+              title="Lucro hoje"
+              value={formatMoney(summary?.today_profit ?? 0)}
+              subtitle={`${summary?.today_roi_items ?? 0} entradas com odd válida`}
+            />
+            <StatCard
+              title="Stake hoje"
+              value={formatMoney(summary?.today_stake ?? 0)}
+            />
+            <StatCard
+              title="ROI hoje"
+              value={`${((summary?.today_roi ?? 0) * 100).toFixed(2)}%`}
+            />
+            <StatCard
+              title="ROI válido hoje"
+              value={summary?.today_roi_items ?? 0}
+              subtitle="Apostas consideradas hoje"
             />
           </section>
         </section>
@@ -125,7 +184,7 @@ export default function DashboardHome() {
           <div className="panel__header">
             <div>
               <h2>Últimas previsões</h2>
-              <p>Resumo rápido das entradas mais recentes registradas no sistema.</p>
+              <p>Entradas mais recentes registradas no sistema.</p>
             </div>
           </div>
 
@@ -165,7 +224,7 @@ export default function DashboardHome() {
                       <td>{item.model_source || "-"}</td>
                       <td>
                         <span className={`pill pill--status-${normalizeStatus(item.status)}`}>
-                          {item.status}
+                          {formatStatus(item.status)}
                         </span>
                       </td>
                     </tr>
@@ -192,4 +251,17 @@ function normalizeStatus(value) {
   if (text === "hit") return "hit";
   if (text === "miss") return "miss";
   return "pending";
+}
+
+function formatStatus(value) {
+  const text = String(value || "").toLowerCase();
+  if (text === "hit") return "Hit";
+  if (text === "miss") return "Miss";
+  return "Pending";
+}
+
+function formatMoney(value) {
+  const number = Number(value || 0);
+  const signal = number > 0 ? "+" : "";
+  return `${signal}${number.toFixed(2)}u`;
 }
