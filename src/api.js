@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://telegram-bot-agent-6gik.onrender.com:8000",
+  baseURL: "https://telegram-bot-agent-6gik.onrender.com",
   timeout: 15000,
 });
 
