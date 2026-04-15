@@ -56,21 +56,54 @@ export default function DashboardHome() {
       <main className="main-content">
         <Topbar onLogout={handleLogout} />
 
-        <section className="stats-grid">
-          <StatCard title="Previsões" value={summary?.total_predictions ?? 0} />
-          <StatCard title="Resolvidas" value={summary?.resolved_predictions ?? 0} />
-          <StatCard title="Acertos" value={summary?.hits ?? 0} />
-          <StatCard title="Erros" value={summary?.misses ?? 0} />
-          <StatCard
-            title="Acurácia"
-            value={`${((summary?.accuracy ?? 0) * 100).toFixed(2)}%`}
-          />
-          <StatCard title="Pendentes" value={summary?.pending_predictions ?? 0} />
-          <StatCard
-            title="Confiança alta"
-            value={summary?.high_confidence_predictions ?? 0}
-          />
-          <StatCard title="Value bets" value={summary?.value_bets ?? 0} />
+        <section className="panel panel--spaced">
+          <div className="panel__header">
+            <div>
+              <h2>Resumo geral</h2>
+              <p>Visão consolidada de toda a base.</p>
+            </div>
+          </div>
+
+          <section className="stats-grid">
+            <StatCard title="Previsões" value={summary?.total_predictions ?? 0} />
+            <StatCard title="Resolvidas" value={summary?.resolved_predictions ?? 0} />
+            <StatCard title="Acertos" value={summary?.hits ?? 0} />
+            <StatCard title="Erros" value={summary?.misses ?? 0} />
+            <StatCard
+              title="Acurácia"
+              value={`${((summary?.accuracy ?? 0) * 100).toFixed(2)}%`}
+            />
+            <StatCard title="Pendentes" value={summary?.pending_predictions ?? 0} />
+            <StatCard
+              title="Confiança alta"
+              value={summary?.high_confidence_predictions ?? 0}
+            />
+            <StatCard title="Value bets" value={summary?.value_bets ?? 0} />
+          </section>
+        </section>
+
+        <section className="panel panel--spaced">
+          <div className="panel__header">
+            <div>
+              <h2>Resumo de hoje</h2>
+              <p>
+                Baseado na data de resolução do jogo ({`checked_at`}).
+              </p>
+            </div>
+          </div>
+
+          <section className="stats-grid">
+            <StatCard
+              title="Resolvidas hoje"
+              value={summary?.today_resolved_predictions ?? 0}
+            />
+            <StatCard title="Acertos hoje" value={summary?.today_hits ?? 0} />
+            <StatCard title="Erros hoje" value={summary?.today_misses ?? 0} />
+            <StatCard
+              title="Acurácia hoje"
+              value={`${((summary?.today_accuracy ?? 0) * 100).toFixed(2)}%`}
+            />
+          </section>
         </section>
 
         <section className="quick-actions">
@@ -80,8 +113,12 @@ export default function DashboardHome() {
           <button className="action-card" onClick={() => navigate("/results")}>
             🏁 Ver resultados
           </button>
-           <button className="action-card" onClick={() => navigate("/market")}>💰 Mercado / CLV</button>
-           <button className="action-card" onClick={() => navigate("/model")}>🤖 Status do modelo</button>
+          <button className="action-card" onClick={() => navigate("/market")}>
+            💰 Mercado / CLV
+          </button>
+          <button className="action-card" onClick={() => navigate("/model")}>
+            🤖 Status do modelo
+          </button>
         </section>
 
         <section className="panel">
