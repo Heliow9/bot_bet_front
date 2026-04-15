@@ -1,0 +1,152 @@
+:root {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #e5e7eb;
+  background: #08111f;
+  line-height: 1.5;
+  font-weight: 400;
+
+  --bg: #08111f;
+  --bg-soft: #0f172a;
+  --card: #111827;
+  --card-2: #162033;
+  --border: rgba(255, 255, 255, 0.08);
+  --text: #e5e7eb;
+  --muted: #94a3b8;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --warning: #d97706;
+  --shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+  --radius: 20px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  background: linear-gradient(180deg, #08111f 0%, #0b1220 100%);
+  color: var(--text);
+}
+
+body {
+  min-height: 100vh;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.button {
+  border: none;
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
+  font-weight: 700;
+  transition: 0.2s ease;
+}
+
+.button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.button--primary {
+  background: var(--primary);
+  color: white;
+}
+
+.button--primary:hover {
+  background: var(--primary-hover);
+}
+
+.button--ghost {
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+  border: 1px solid var(--border);
+}
+
+.button--ghost:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.field label {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.field input {
+  width: 100%;
+  padding: 0.95rem 1rem;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: white;
+  outline: none;
+}
+
+.field input:focus {
+  border-color: rgba(37, 99, 235, 0.8);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.pill--high {
+  background: rgba(22, 163, 74, 0.18);
+  color: #86efac;
+}
+
+.pill--medium {
+  background: rgba(217, 119, 6, 0.18);
+  color: #fdba74;
+}
+
+.pill--low {
+  background: rgba(220, 38, 38, 0.18);
+  color: #fca5a5;
+}
+
+.pill--status-hit {
+  background: rgba(22, 163, 74, 0.18);
+  color: #86efac;
+}
+
+.pill--status-miss {
+  background: rgba(220, 38, 38, 0.18);
+  color: #fca5a5;
+}
+
+.pill--status-pending {
+  background: rgba(59, 130, 246, 0.18);
+  color: #93c5fd;
+}
