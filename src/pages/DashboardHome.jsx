@@ -101,10 +101,7 @@ export default function DashboardHome() {
               value={formatMoney(summary?.profit ?? 0)}
               subtitle={`${summary?.roi_items ?? 0} entradas com odd válida`}
             />
-            <StatCard
-              title="Stake total"
-              value={formatMoney(summary?.stake ?? 0)}
-            />
+            <StatCard title="Stake total" value={formatMoney(summary?.stake ?? 0)} />
             <StatCard
               title="ROI"
               value={`${((summary?.roi ?? 0) * 100).toFixed(2)}%`}
@@ -120,8 +117,8 @@ export default function DashboardHome() {
         <section className="panel panel--spaced">
           <div className="panel__header">
             <div>
-              <h2>Resumo de hoje</h2>
-              <p>Baseado na data real de fechamento da previsão ({`checked_at`}).</p>
+              <h2>Baixas do dia</h2>
+              <p>Baseado no momento em que o sistema consolidou o resultado ({`checked_at`}).</p>
             </div>
           </div>
 
@@ -136,15 +133,18 @@ export default function DashboardHome() {
               title="Acurácia hoje"
               value={`${((summary?.today_accuracy ?? 0) * 100).toFixed(2)}%`}
             />
-            <StatCard title="Ao vivo hoje" value={summary?.today_live_predictions ?? 0} />
+            <StatCard
+              title="Ao vivo hoje"
+              value={summary?.today_live_predictions ?? 0}
+            />
           </section>
         </section>
 
         <section className="panel panel--spaced">
           <div className="panel__header">
             <div>
-              <h2>Financeiro de hoje</h2>
-              <p>Lucro e ROI apenas das previsões resolvidas hoje.</p>
+              <h2>Financeiro das baixas do dia</h2>
+              <p>Lucro e ROI das previsões consolidadas hoje pelo sistema.</p>
             </div>
           </div>
 
@@ -192,12 +192,12 @@ export default function DashboardHome() {
             <StatCard
               title="Resolvidas hoje"
               value={summary?.today_resolved_predictions ?? 0}
-              subtitle="Com resultado consolidado"
+              subtitle="Consolidadas pelo sistema"
             />
             <StatCard
               title="Acertos hoje"
               value={summary?.today_hits ?? 0}
-              subtitle="Desempenho do dia"
+              subtitle="Desempenho das baixas do dia"
             />
           </section>
         </section>
@@ -421,3 +421,4 @@ function formatClasses(classes) {
   if (!Array.isArray(classes) || classes.length === 0) return "Sem classes";
   return `Classes: ${classes.join(" • ")}`;
 }
+
