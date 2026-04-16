@@ -20,8 +20,7 @@ export default function PredictionsPage() {
       const status = err?.response?.status;
 
       if (status === 401 || status === 403) {
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("user");
+        localStorage.clear();
         navigate("/login");
         return;
       }
@@ -37,8 +36,7 @@ export default function PredictionsPage() {
   }, []);
 
   function handleLogout() {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("user");
+    localStorage.clear();
     navigate("/login");
   }
 
@@ -76,13 +74,15 @@ export default function PredictionsPage() {
                     <th>Probabilidades</th>
                     <th>Confiança</th>
                     <th>Status</th>
+                    <th>Status técnico</th>
+                    <th>Última checagem</th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {items.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="table-empty">
+                      <td colSpan="8" className="table-empty">
                         Nenhuma previsão pendente encontrada.
                       </td>
                     </tr>
@@ -90,18 +90,47 @@ export default function PredictionsPage() {
                     items.map((item) => (
                       <tr key={item.id}>
                         <td>{item.league_name}</td>
-                        <td>{item.home_team} x {item.away_team}</td>
-                        <td>{item.pick}</td>
+
                         <td>
-                          {Math.round(item.prob_home * 100)}% • {Math.round(item.prob_draw * 100)}% • {Math.round(item.prob_away * 100)}%
+                          <strong>
+                            {item.home_team} x {item.away_team}
+                          </strong>
                         </td>
+
+                        <td>{item.pick}</td>
+
+                        <td>
+                          {Math.round(item.prob_home * 100)}% •{" "}
+                          {Math.round(item.prob_draw * 100)}% •{" "}
+                          {Math.round(item.prob_away * 100)}%
+                        </td>
+
                         <td>
                           <span className={`pill pill--${normalizeConfidence(item.confidence)}`}>
                             {item.confidence}
                           </span>
                         </td>
+
                         <td>
-                          <span className="pill pill--status-pending">{item.status}</span>
+                          <span className="pill pill--status-pending">
+                            Pending
+                          </span>
+                        </td>
+
+                        <td>
+                          {item.is_live ? (
+                            <span className="pill pill--status-live">Ao vivo</span>
+                          ) : (
+                            <span className="pill pill--status-neutral">
+                              {item.last_status_text || "Aguardando"}
+                            </span>
+                          )}
+                        </td>
+
+                        <td>
+                          <small className="muted-text">
+                            {formatDateTime(item.last_checked_at)}
+                          </small>
                         </td>
                       </tr>
                     ))
@@ -121,4 +150,18 @@ function normalizeConfidence(value) {
   if (text.includes("alta")) return "high";
   if (text.includes("média") || text.includes("media")) return "medium";
   return "low";
+}
+
+function formatDateTime(value) {
+  if (!value) return "-";
+
+  try {
+    const date = new Date(value);
+    return date.toLocaleString("pt-BR", {
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+  } catch {
+    return "-";
+  }
 }

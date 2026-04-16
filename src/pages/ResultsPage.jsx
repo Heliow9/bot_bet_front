@@ -20,8 +20,7 @@ export default function ResultsPage() {
       const status = err?.response?.status;
 
       if (status === 401 || status === 403) {
-        localStorage.removeItem("access_token");
-        localStorage.removeItem("user");
+        localStorage.clear();
         navigate("/login");
         return;
       }
@@ -37,8 +36,7 @@ export default function ResultsPage() {
   }, []);
 
   function handleLogout() {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("user");
+    localStorage.clear();
     navigate("/login");
   }
 
@@ -76,13 +74,15 @@ export default function ResultsPage() {
                     <th>Resultado</th>
                     <th>Placar</th>
                     <th>Status</th>
+                    <th>Status técnico</th>
+                    <th>Última checagem</th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {items.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="table-empty">
+                      <td colSpan="8" className="table-empty">
                         Nenhum resultado resolvido encontrado.
                       </td>
                     </tr>
@@ -90,14 +90,41 @@ export default function ResultsPage() {
                     items.map((item) => (
                       <tr key={item.id}>
                         <td>{item.league_name}</td>
-                        <td>{item.home_team} x {item.away_team}</td>
+
+                        <td>
+                          <strong>
+                            {item.home_team} x {item.away_team}
+                          </strong>
+                        </td>
+
                         <td>{item.pick}</td>
+
                         <td>{item.result || "-"}</td>
-                        <td>{item.home_score ?? "-"} x {item.away_score ?? "-"}</td>
+
+                        <td>
+                          {item.home_score ?? "-"} x {item.away_score ?? "-"}
+                        </td>
+
                         <td>
                           <span className={`pill pill--status-${normalizeStatus(item.status)}`}>
-                            {item.status}
+                            {formatStatus(item.status)}
                           </span>
+                        </td>
+
+                        <td>
+                          {item.is_live ? (
+                            <span className="pill pill--status-live">Ao vivo</span>
+                          ) : (
+                            <span className="pill pill--status-neutral">
+                              {item.last_status_text || "Finalizado"}
+                            </span>
+                          )}
+                        </td>
+
+                        <td>
+                          <small className="muted-text">
+                            {formatDateTime(item.last_checked_at || item.checked_at)}
+                          </small>
                         </td>
                       </tr>
                     ))
@@ -117,4 +144,25 @@ function normalizeStatus(value) {
   if (text === "hit") return "hit";
   if (text === "miss") return "miss";
   return "pending";
+}
+
+function formatStatus(value) {
+  const text = String(value || "").toLowerCase();
+  if (text === "hit") return "Hit";
+  if (text === "miss") return "Miss";
+  return "Pending";
+}
+
+function formatDateTime(value) {
+  if (!value) return "-";
+
+  try {
+    const date = new Date(value);
+    return date.toLocaleString("pt-BR", {
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+  } catch {
+    return "-";
+  }
 }
