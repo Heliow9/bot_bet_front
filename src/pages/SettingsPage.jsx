@@ -13,6 +13,8 @@ const INITIAL_FORM = {
   live_signal_min_shots_diff: 4,
   live_signal_min_on_target_diff: 2,
   live_signal_min_possession_diff: 8,
+  telegram_send_to_main_chat: true,
+  telegram_send_to_channel: false,
 };
 
 export default function SettingsPage() {
@@ -28,7 +30,10 @@ export default function SettingsPage() {
     try {
       setError("");
       const response = await api.get("/settings/runtime");
-      setForm(response.data);
+      setForm({
+        ...INITIAL_FORM,
+        ...(response.data || {}),
+      });
     } catch (err) {
       const status = err?.response?.status;
 
@@ -78,10 +83,15 @@ export default function SettingsPage() {
         live_signal_min_shots_diff: Number(form.live_signal_min_shots_diff),
         live_signal_min_on_target_diff: Number(form.live_signal_min_on_target_diff),
         live_signal_min_possession_diff: Number(form.live_signal_min_possession_diff),
+        telegram_send_to_main_chat: Boolean(form.telegram_send_to_main_chat),
+        telegram_send_to_channel: Boolean(form.telegram_send_to_channel),
       };
 
       const response = await api.put("/settings/runtime", payload);
-      setForm(response.data);
+      setForm({
+        ...INITIAL_FORM,
+        ...(response.data || {}),
+      });
       setSuccess("Configurações salvas com sucesso.");
     } catch (err) {
       const status = err?.response?.status;
@@ -234,6 +244,47 @@ export default function SettingsPage() {
             <section className="panel panel--spaced">
               <div className="panel__header">
                 <div>
+                  <h2>Telegram</h2>
+                  <p>
+                    Controle para onde as mensagens automáticas serão enviadas.
+                  </p>
+                </div>
+              </div>
+
+              <div className="settings-grid">
+                <div className="settings-field">
+                  <label>Enviar para chat principal</label>
+                  <select
+                    value={String(form.telegram_send_to_main_chat)}
+                    onChange={(e) =>
+                      updateField("telegram_send_to_main_chat", e.target.value === "true")
+                    }
+                  >
+                    <option value="true">Ativado</option>
+                    <option value="false">Desativado</option>
+                  </select>
+                  <small>Usa o TELEGRAM_CHAT_ID configurado no backend.</small>
+                </div>
+
+                <div className="settings-field">
+                  <label>Enviar para canal</label>
+                  <select
+                    value={String(form.telegram_send_to_channel)}
+                    onChange={(e) =>
+                      updateField("telegram_send_to_channel", e.target.value === "true")
+                    }
+                  >
+                    <option value="true">Ativado</option>
+                    <option value="false">Desativado</option>
+                  </select>
+                  <small>Usa o TELEGRAM_CHANNEL_CHAT_ID configurado no backend.</small>
+                </div>
+              </div>
+            </section>
+
+            <section className="panel panel--spaced">
+              <div className="panel__header">
+                <div>
                   <h2>Resumo rápido</h2>
                   <p>Revise os parâmetros atuais antes de salvar.</p>
                 </div>
@@ -258,6 +309,20 @@ export default function SettingsPage() {
                   <div className="settings-summary-card__label">Intervalo</div>
                   <div className="settings-summary-card__value">
                     {form.live_monitor_interval_seconds}s
+                  </div>
+                </div>
+
+                <div className="settings-summary-card">
+                  <div className="settings-summary-card__label">Chat principal</div>
+                  <div className="settings-summary-card__value">
+                    {form.telegram_send_to_main_chat ? "Ativado" : "Desativado"}
+                  </div>
+                </div>
+
+                <div className="settings-summary-card">
+                  <div className="settings-summary-card__label">Canal</div>
+                  <div className="settings-summary-card__value">
+                    {form.telegram_send_to_channel ? "Ativado" : "Desativado"}
                   </div>
                 </div>
               </div>
