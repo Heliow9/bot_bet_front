@@ -11,17 +11,20 @@ export default function DashboardHome() {
 
   const [summary, setSummary] = useState(null);
   const [predictions, setPredictions] = useState([]);
+  const [modelStatus, setModelStatus] = useState(null);
   const [loading, setLoading] = useState(true);
 
   async function loadData() {
     try {
-      const [summaryRes, predictionsRes] = await Promise.all([
+      const [summaryRes, predictionsRes, modelStatusRes] = await Promise.all([
         api.get("/dashboard/summary"),
         api.get("/dashboard/predictions?limit=10"),
+        api.get("/dashboard/model-status"),
       ]);
 
       setSummary(summaryRes.data);
       setPredictions(predictionsRes.data.items || []);
+      setModelStatus(modelStatusRes.data || null);
     } catch (error) {
       console.error("Erro ao carregar dashboard:", error);
       localStorage.removeItem("access_token");
@@ -199,6 +202,48 @@ export default function DashboardHome() {
           </section>
         </section>
 
+        <section className="panel panel--spaced">
+          <div className="panel__header">
+            <div>
+              <h2>Status do modelo</h2>
+              <p>Acompanhamento da última versão treinada e da saúde do pipeline de ML.</p>
+            </div>
+          </div>
+
+          <section className="stats-grid">
+            <StatCard
+              title="Modelo carregado"
+              value={modelStatus?.model_loaded ? "Sim" : "Não"}
+              subtitle={modelStatus?.model_loaded ? "Pronto para inferência" : "Fallback heurístico"}
+            />
+            <StatCard
+              title="Último treino"
+              value={formatDateTime(modelStatus?.last_training_at)}
+              subtitle="Baseado no arquivo do modelo"
+            />
+            <StatCard
+              title="Dataset"
+              value={modelStatus?.rows ?? 0}
+              subtitle={`Treino: ${modelStatus?.train_rows ?? 0} • Teste: ${modelStatus?.test_rows ?? 0}`}
+            />
+            <StatCard
+              title="Accuracy ML"
+              value={formatPercent(modelStatus?.accuracy)}
+              subtitle="Validação holdout"
+            />
+            <StatCard
+              title="Log loss"
+              value={formatDecimal(modelStatus?.log_loss)}
+              subtitle="Quanto menor, melhor"
+            />
+            <StatCard
+              title="Features"
+              value={modelStatus?.features_count ?? 0}
+              subtitle={formatClasses(modelStatus?.classes)}
+            />
+          </section>
+        </section>
+
         <section className="quick-actions">
           <button className="action-card" onClick={() => navigate("/predictions")}>
             📊 Ver previsões
@@ -358,4 +403,21 @@ function formatDateTime(value) {
   } catch {
     return "-";
   }
+}
+
+function formatPercent(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "-";
+  return `${(number * 100).toFixed(2)}%`;
+}
+
+function formatDecimal(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "-";
+  return number.toFixed(4);
+}
+
+function formatClasses(classes) {
+  if (!Array.isArray(classes) || classes.length === 0) return "Sem classes";
+  return `Classes: ${classes.join(" • ")}`;
 }

@@ -9,17 +9,24 @@ import "../styles/dashboard.css";
 export default function ModelPage() {
   const navigate = useNavigate();
 
-  const [data, setData] = useState(null);
+  const [performanceData, setPerformanceData] = useState(null);
+  const [modelStatus, setModelStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   async function loadData() {
     try {
       setError("");
-      const response = await api.get("/dashboard/model-performance");
-      setData(response.data);
+
+      const [performanceRes, modelStatusRes] = await Promise.all([
+        api.get("/dashboard/model-performance"),
+        api.get("/dashboard/model-status"),
+      ]);
+
+      setPerformanceData(performanceRes.data);
+      setModelStatus(modelStatusRes.data);
     } catch (err) {
-      console.error("Erro ao carregar model performance:", err);
+      console.error("Erro ao carregar página do modelo:", err);
 
       const status = err?.response?.status;
       if (status === 401 || status === 403) {
@@ -29,7 +36,7 @@ export default function ModelPage() {
         return;
       }
 
-      setError("Não foi possível carregar a performance do modelo.");
+      setError("Não foi possível carregar as informações do modelo.");
     } finally {
       setLoading(false);
     }
@@ -45,7 +52,7 @@ export default function ModelPage() {
     navigate("/login");
   }
 
-  const summary = data?.summary || {
+  const summary = performanceData?.summary || {
     resolved_total: 0,
     hits: 0,
     misses: 0,
@@ -55,8 +62,9 @@ export default function ModelPage() {
     roi: 0,
   };
 
-  const byConfidence = data?.by_confidence || [];
-  const byLeague = data?.by_league || [];
+  const byConfidence = performanceData?.by_confidence || [];
+  const byLeague = performanceData?.by_league || [];
+  const features = modelStatus?.features || [];
 
   return (
     <div className="app-layout">
@@ -79,6 +87,48 @@ export default function ModelPage() {
           </div>
         ) : (
           <>
+            <section className="panel panel--spaced">
+              <div className="panel__header">
+                <div>
+                  <h2>Status do modelo</h2>
+                  <p>Saúde da última versão treinada e disponibilidade para inferência.</p>
+                </div>
+              </div>
+
+              <section className="stats-grid">
+                <StatCard
+                  title="Modelo carregado"
+                  value={modelStatus?.model_loaded ? "Sim" : "Não"}
+                  subtitle={modelStatus?.model_loaded ? "Pronto para predição" : "Fallback heurístico ativo"}
+                />
+                <StatCard
+                  title="Último treino"
+                  value={formatDateTime(modelStatus?.last_training_at)}
+                  subtitle="Timestamp do arquivo salvo"
+                />
+                <StatCard
+                  title="Linhas do dataset"
+                  value={modelStatus?.rows ?? 0}
+                  subtitle={`Treino: ${modelStatus?.train_rows ?? 0} • Teste: ${modelStatus?.test_rows ?? 0}`}
+                />
+                <StatCard
+                  title="Accuracy treino"
+                  value={formatPercent(modelStatus?.accuracy)}
+                  subtitle="Validação holdout"
+                />
+                <StatCard
+                  title="Log loss"
+                  value={formatDecimal(modelStatus?.log_loss)}
+                  subtitle="Quanto menor, melhor"
+                />
+                <StatCard
+                  title="Features"
+                  value={modelStatus?.features_count ?? 0}
+                  subtitle={formatClasses(modelStatus?.classes)}
+                />
+              </section>
+            </section>
+
             <section className="stats-grid">
               <StatCard title="Jogos resolvidos" value={summary.resolved_total} />
               <StatCard title="Acertos" value={summary.hits} />
@@ -178,6 +228,35 @@ export default function ModelPage() {
               </div>
             </section>
 
+            <section className="panel panel--spaced">
+              <div className="panel__header">
+                <div>
+                  <h2>Classes e distribuição</h2>
+                  <p>Resumo das classes aprendidas e da distribuição do dataset.</p>
+                </div>
+              </div>
+
+              <section className="stats-grid">
+                <StatCard
+                  title="Classes"
+                  value={Array.isArray(modelStatus?.classes) ? modelStatus.classes.length : 0}
+                  subtitle={formatClasses(modelStatus?.classes)}
+                />
+                <StatCard
+                  title="Casa (1)"
+                  value={modelStatus?.class_distribution?.["1"] ?? 0}
+                />
+                <StatCard
+                  title="Empate (X)"
+                  value={modelStatus?.class_distribution?.["X"] ?? 0}
+                />
+                <StatCard
+                  title="Fora (2)"
+                  value={modelStatus?.class_distribution?.["2"] ?? 0}
+                />
+              </section>
+            </section>
+
             <section className="panel">
               <div className="panel__header">
                 <div>
@@ -232,6 +311,33 @@ export default function ModelPage() {
                 </table>
               </div>
             </section>
+
+            <section className="panel panel--spaced">
+              <div className="panel__header">
+                <div>
+                  <h2>Features do modelo</h2>
+                  <p>Colunas efetivamente usadas na última versão treinada.</p>
+                </div>
+              </div>
+
+              {features.length === 0 ? (
+                <div className="table-empty">Nenhuma feature registrada no modelo.</div>
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "0.6rem",
+                  }}
+                >
+                  {features.map((feature) => (
+                    <span key={feature} className="pill pill--status-neutral">
+                      {feature}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </section>
           </>
         )}
       </main>
@@ -272,4 +378,37 @@ function getRoiClass(roi) {
   if (value > 0) return "text-positive";
   if (value < 0) return "text-negative";
   return "text-neutral";
+}
+
+function formatDateTime(value) {
+  if (!value) return "-";
+
+  try {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "-";
+
+    return date.toLocaleString("pt-BR", {
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+  } catch {
+    return "-";
+  }
+}
+
+function formatPercent(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "-";
+  return `${(number * 100).toFixed(2)}%`;
+}
+
+function formatDecimal(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "-";
+  return number.toFixed(4);
+}
+
+function formatClasses(classes) {
+  if (!Array.isArray(classes) || classes.length === 0) return "Sem classes";
+  return classes.join(" • ");
 }
