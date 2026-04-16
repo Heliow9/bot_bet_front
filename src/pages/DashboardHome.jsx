@@ -75,6 +75,7 @@ export default function DashboardHome() {
               value={`${((summary?.accuracy ?? 0) * 100).toFixed(2)}%`}
             />
             <StatCard title="Pendentes" value={summary?.pending_predictions ?? 0} />
+            <StatCard title="Ao vivo" value={summary?.live_predictions ?? 0} />
             <StatCard
               title="Confiança alta"
               value={summary?.high_confidence_predictions ?? 0}
@@ -132,6 +133,7 @@ export default function DashboardHome() {
               title="Acurácia hoje"
               value={`${((summary?.today_accuracy ?? 0) * 100).toFixed(2)}%`}
             />
+            <StatCard title="Ao vivo hoje" value={summary?.today_live_predictions ?? 0} />
           </section>
         </section>
 
@@ -161,6 +163,38 @@ export default function DashboardHome() {
               title="ROI válido hoje"
               value={summary?.today_roi_items ?? 0}
               subtitle="Apostas consideradas hoje"
+            />
+          </section>
+        </section>
+
+        <section className="panel panel--spaced">
+          <div className="panel__header">
+            <div>
+              <h2>Saúde operacional</h2>
+              <p>Leitura rápida do estado técnico das previsões monitoradas.</p>
+            </div>
+          </div>
+
+          <section className="stats-grid">
+            <StatCard
+              title="Jogos ao vivo"
+              value={summary?.live_predictions ?? 0}
+              subtitle="Previsões marcadas como live"
+            />
+            <StatCard
+              title="Pendências"
+              value={summary?.pending_predictions ?? 0}
+              subtitle="Aguardando fechamento"
+            />
+            <StatCard
+              title="Resolvidas hoje"
+              value={summary?.today_resolved_predictions ?? 0}
+              subtitle="Com resultado consolidado"
+            />
+            <StatCard
+              title="Acertos hoje"
+              value={summary?.today_hits ?? 0}
+              subtitle="Desempenho do dia"
             />
           </section>
         </section>
@@ -198,13 +232,15 @@ export default function DashboardHome() {
                   <th>Confiança</th>
                   <th>Modelo</th>
                   <th>Status</th>
+                  <th>Status técnico</th>
+                  <th>Última checagem</th>
                 </tr>
               </thead>
 
               <tbody>
                 {predictions.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="table-empty">
+                    <td colSpan="8" className="table-empty">
                       Nenhuma previsão encontrada no banco.
                     </td>
                   </tr>
@@ -212,20 +248,62 @@ export default function DashboardHome() {
                   predictions.map((item) => (
                     <tr key={item.id}>
                       <td>{item.league_name}</td>
+
                       <td>
-                        {item.home_team} x {item.away_team}
+                        <div style={{ display: "grid", gap: "0.2rem" }}>
+                          <strong>
+                            {item.home_team} x {item.away_team}
+                          </strong>
+
+                          {(item.home_score !== null && item.home_score !== undefined) ||
+                          (item.away_score !== null && item.away_score !== undefined) ? (
+                            <small className="muted-text">
+                              Placar: {item.home_score ?? "-"} x {item.away_score ?? "-"}
+                            </small>
+                          ) : (
+                            <small className="muted-text">
+                              {item.match_date} • {item.match_time}
+                            </small>
+                          )}
+                        </div>
                       </td>
+
                       <td>{item.pick}</td>
+
                       <td>
                         <span className={`pill pill--${normalizeConfidence(item.confidence)}`}>
                           {item.confidence}
                         </span>
                       </td>
+
                       <td>{item.model_source || "-"}</td>
+
                       <td>
                         <span className={`pill pill--status-${normalizeStatus(item.status)}`}>
                           {formatStatus(item.status)}
                         </span>
+                      </td>
+
+                      <td>
+                        <div style={{ display: "grid", gap: "0.2rem" }}>
+                          {item.is_live ? (
+                            <span className="pill pill--status-live">Ao vivo</span>
+                          ) : (
+                            <span className="pill pill--status-neutral">
+                              {item.last_status_text || "Sem status"}
+                            </span>
+                          )}
+
+                          <small className="muted-text">
+                            Fonte: {item.result_source || "-"}
+                          </small>
+                        </div>
+                      </td>
+
+                      <td>
+                        <small className="muted-text">
+                          {formatDateTime(item.last_checked_at || item.checked_at)}
+                        </small>
                       </td>
                     </tr>
                   ))
@@ -264,4 +342,20 @@ function formatMoney(value) {
   const number = Number(value || 0);
   const signal = number > 0 ? "+" : "";
   return `${signal}${number.toFixed(2)}u`;
+}
+
+function formatDateTime(value) {
+  if (!value) return "-";
+
+  try {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "-";
+
+    return date.toLocaleString("pt-BR", {
+      dateStyle: "short",
+      timeStyle: "short",
+    });
+  } catch {
+    return "-";
+  }
 }
