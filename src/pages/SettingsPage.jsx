@@ -15,12 +15,26 @@ const INITIAL_FORM = {
   live_signal_min_possession_diff: 8,
   telegram_send_to_main_chat: true,
   telegram_send_to_channel: false,
+  odds_api_keys: [],
 };
+
+function parseOddsKeysInput(value) {
+  return String(value || "")
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function formatOddsKeysInput(keys) {
+  if (!Array.isArray(keys)) return "";
+  return keys.join("\n");
+}
 
 export default function SettingsPage() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState(INITIAL_FORM);
+  const [oddsKeysText, setOddsKeysText] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -30,10 +44,13 @@ export default function SettingsPage() {
     try {
       setError("");
       const response = await api.get("/settings/runtime");
-      setForm({
+      const data = {
         ...INITIAL_FORM,
         ...(response.data || {}),
-      });
+      };
+
+      setForm(data);
+      setOddsKeysText(formatOddsKeysInput(data.odds_api_keys));
     } catch (err) {
       const status = err?.response?.status;
 
@@ -85,13 +102,18 @@ export default function SettingsPage() {
         live_signal_min_possession_diff: Number(form.live_signal_min_possession_diff),
         telegram_send_to_main_chat: Boolean(form.telegram_send_to_main_chat),
         telegram_send_to_channel: Boolean(form.telegram_send_to_channel),
+        odds_api_keys: parseOddsKeysInput(oddsKeysText),
       };
 
       const response = await api.put("/settings/runtime", payload);
-      setForm({
+
+      const data = {
         ...INITIAL_FORM,
         ...(response.data || {}),
-      });
+      };
+
+      setForm(data);
+      setOddsKeysText(formatOddsKeysInput(data.odds_api_keys));
       setSuccess("Configurações salvas com sucesso.");
     } catch (err) {
       const status = err?.response?.status;
@@ -149,6 +171,36 @@ export default function SettingsPage() {
                     onChange={(e) => updateField("value_bet_edge", e.target.value)}
                   />
                   <small>Exemplo: 0.05 = 5%</small>
+                </div>
+              </div>
+            </section>
+
+            <section className="panel panel--spaced">
+              <div className="panel__header">
+                <div>
+                  <h2>Odds API</h2>
+                  <p>
+                    Cadastre múltiplas API keys. O backend tentará a próxima
+                    automaticamente em caso de 401, 403 ou 429.
+                  </p>
+                </div>
+              </div>
+
+              <div className="settings-grid">
+                <div className="settings-field settings-field--full">
+                  <label>API keys de odds</label>
+                  <textarea
+                    rows={8}
+                    value={oddsKeysText}
+                    onChange={(e) => {
+                      setSuccess("");
+                      setOddsKeysText(e.target.value);
+                    }}
+                    placeholder={`cole uma key por linha\nkey_1\nkey_2\nkey_3`}
+                  />
+                  <small>
+                    Uma key por linha. Duplicadas e linhas vazias serão ignoradas.
+                  </small>
                 </div>
               </div>
             </section>
@@ -323,6 +375,13 @@ export default function SettingsPage() {
                   <div className="settings-summary-card__label">Canal</div>
                   <div className="settings-summary-card__value">
                     {form.telegram_send_to_channel ? "Ativado" : "Desativado"}
+                  </div>
+                </div>
+
+                <div className="settings-summary-card">
+                  <div className="settings-summary-card__label">Keys de odds</div>
+                  <div className="settings-summary-card__value">
+                    {parseOddsKeysInput(oddsKeysText).length}
                   </div>
                 </div>
               </div>
