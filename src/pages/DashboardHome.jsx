@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 import Sidebar from "../components/Sidebar";
@@ -14,16 +14,18 @@ export default function DashboardHome() {
   const [modelStatus, setModelStatus] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  async function loadData() {
+  async function loadData({ silent = false } = {}) {
     try {
+      if (!silent) setLoading(true);
+
       const [summaryRes, predictionsRes, modelStatusRes] = await Promise.all([
         api.get("/dashboard/summary"),
         api.get("/dashboard/predictions?limit=10"),
         api.get("/dashboard/model-status"),
       ]);
 
-      setSummary(summaryRes.data);
-      setPredictions(predictionsRes.data.items || []);
+      setSummary(summaryRes.data || null);
+      setPredictions(predictionsRes.data?.items || []);
       setModelStatus(modelStatusRes.data || null);
     } catch (error) {
       console.error("Erro ao carregar dashboard:", error);
@@ -31,12 +33,18 @@ export default function DashboardHome() {
       localStorage.removeItem("user");
       navigate("/login");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
   useEffect(() => {
     loadData();
+
+    const interval = setInterval(() => {
+      loadData({ silent: true });
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
   function handleLogout() {
@@ -44,6 +52,58 @@ export default function DashboardHome() {
     localStorage.removeItem("user");
     navigate("/login");
   }
+
+  const hero = useMemo(() => {
+    return {
+      profit: Number(summary?.profit ?? 0),
+      roi: Number(summary?.roi ?? 0),
+      accuracy: Number(summary?.accuracy ?? 0),
+      pending: Number(summary?.pending_predictions ?? 0),
+      live: Number(summary?.live_predictions ?? 0),
+      todayResolved: Number(summary?.today_resolved_predictions ?? 0),
+    };
+  }, [summary]);
+
+  const executiveInsight = useMemo(() => {
+    const roi = Number(summary?.roi ?? 0);
+    const acc = Number(summary?.accuracy ?? 0);
+    const todayRoi = Number(summary?.today_roi ?? 0);
+    const modelAcc = Number(modelStatus?.accuracy ?? 0);
+    const pending = Number(summary?.pending_predictions ?? 0);
+    const live = Number(summary?.live_predictions ?? 0);
+
+    if (roi > 0 && acc >= 0.55 && modelAcc >= 0.55) {
+      return {
+        tone: "good",
+        title: "Operação saudável",
+        text: `A operação está positiva, com ROI geral em ${formatPercent(roi)} e acurácia em ${formatPercent(
+          acc
+        )}. O modelo também está em boa condição para suportar entradas com maior confiança.`,
+      };
+    }
+
+    if (todayRoi < 0 || acc < 0.5) {
+      return {
+        tone: "warning",
+        title: "Atenção ao desempenho",
+        text: `Os indicadores pedem cautela. O desempenho do dia e/ou a acurácia geral sugerem reduzir agressividade nas entradas e monitorar principalmente picks de confiança média.`,
+      };
+    }
+
+    if (pending > 20 || live > 10) {
+      return {
+        tone: "info",
+        title: "Carga operacional elevada",
+        text: `Existe uma quantidade relevante de previsões pendentes e jogos ao vivo monitorados. Vale acompanhar a fila de resolução para evitar atraso na leitura de resultado.`,
+      };
+    }
+
+    return {
+      tone: "neutral",
+      title: "Operação estável",
+      text: `O painel mostra operação estável neste momento. O ideal é acompanhar lucro, ROI e qualidade do modelo em conjunto antes de aumentar exposição.`,
+    };
+  }, [summary, modelStatus]);
 
   if (loading) {
     return (
@@ -60,6 +120,87 @@ export default function DashboardHome() {
       <main className="main-content">
         <Topbar onLogout={handleLogout} />
 
+        <section className="hero-overview">
+          <div className={`hero-primary-card ${getToneClassFromProfit(hero.profit)}`}>
+            <div className="hero-primary-card__label">Lucro acumulado</div>
+            <div className="hero-primary-card__value">{formatMoney(hero.profit)}</div>
+            <div className="hero-primary-card__meta">
+              <span>Stake total: {formatMoney(summary?.stake ?? 0)}</span>
+              <span>{summary?.roi_items ?? 0} entradas válidas no ROI</span>
+            </div>
+          </div>
+
+          <div className="hero-secondary-grid">
+            <div className={`hero-mini-card ${getToneClassFromRoi(hero.roi)}`}>
+              <span className="hero-mini-card__label">ROI</span>
+              <strong className="hero-mini-card__value">{formatPercent(hero.roi)}</strong>
+              <small className="hero-mini-card__sub">Retorno consolidado</small>
+            </div>
+
+            <div className={`hero-mini-card ${getToneClassFromAccuracy(hero.accuracy)}`}>
+              <span className="hero-mini-card__label">Acurácia</span>
+              <strong className="hero-mini-card__value">{formatPercent(hero.accuracy)}</strong>
+              <small className="hero-mini-card__sub">Base resolvida</small>
+            </div>
+
+            <div className="hero-mini-card">
+              <span className="hero-mini-card__label">Pendentes</span>
+              <strong className="hero-mini-card__value">{hero.pending}</strong>
+              <small className="hero-mini-card__sub">Aguardando fechamento</small>
+            </div>
+
+            <div className="hero-mini-card">
+              <span className="hero-mini-card__label">Ao vivo</span>
+              <strong className="hero-mini-card__value">{hero.live}</strong>
+              <small className="hero-mini-card__sub">Monitoradas em live</small>
+            </div>
+          </div>
+        </section>
+
+        <section className={`executive-insight executive-insight--${executiveInsight.tone}`}>
+          <div className="executive-insight__icon">
+            {executiveInsight.tone === "good"
+              ? "📈"
+              : executiveInsight.tone === "warning"
+              ? "⚠️"
+              : executiveInsight.tone === "info"
+              ? "🛰️"
+              : "🧠"}
+          </div>
+
+          <div className="executive-insight__content">
+            <strong>{executiveInsight.title}</strong>
+            <p>{executiveInsight.text}</p>
+          </div>
+        </section>
+
+        <section className="context-strip">
+          <div className="context-chip">
+            <span className="context-chip__label">Resolvidas hoje</span>
+            <strong>{hero.todayResolved}</strong>
+          </div>
+          <div className="context-chip">
+            <span className="context-chip__label">Lucro hoje</span>
+            <strong className={getValueTextClass(summary?.today_profit)}>
+              {formatMoney(summary?.today_profit ?? 0)}
+            </strong>
+          </div>
+          <div className="context-chip">
+            <span className="context-chip__label">ROI hoje</span>
+            <strong className={getValueTextClass(summary?.today_roi, true)}>
+              {formatPercent(summary?.today_roi ?? 0)}
+            </strong>
+          </div>
+          <div className="context-chip">
+            <span className="context-chip__label">Modelo carregado</span>
+            <strong>{modelStatus?.model_loaded ? "Sim" : "Não"}</strong>
+          </div>
+          <div className="context-chip">
+            <span className="context-chip__label">Último treino</span>
+            <strong>{formatDateTime(modelStatus?.last_training_at)}</strong>
+          </div>
+        </section>
+
         <section className="panel panel--spaced">
           <div className="panel__header">
             <div>
@@ -68,22 +209,24 @@ export default function DashboardHome() {
             </div>
           </div>
 
-          <section className="stats-grid">
-            <StatCard title="Previsões" value={summary?.total_predictions ?? 0} />
-            <StatCard title="Resolvidas" value={summary?.resolved_predictions ?? 0} />
-            <StatCard title="Acertos" value={summary?.hits ?? 0} />
-            <StatCard title="Erros" value={summary?.misses ?? 0} />
-            <StatCard
+          <section className="stats-grid stats-grid--dense">
+            <MetricCard title="Previsões" value={summary?.total_predictions ?? 0} />
+            <MetricCard title="Resolvidas" value={summary?.resolved_predictions ?? 0} />
+            <MetricCard title="Acertos" value={summary?.hits ?? 0} tone="good" />
+            <MetricCard title="Erros" value={summary?.misses ?? 0} tone="bad" />
+            <MetricCard
               title="Acurácia"
-              value={`${((summary?.accuracy ?? 0) * 100).toFixed(2)}%`}
+              value={formatPercent(summary?.accuracy ?? 0)}
+              tone={getMetricToneByPercentage(summary?.accuracy)}
             />
-            <StatCard title="Pendentes" value={summary?.pending_predictions ?? 0} />
-            <StatCard title="Ao vivo" value={summary?.live_predictions ?? 0} />
-            <StatCard
+            <MetricCard title="Pendentes" value={summary?.pending_predictions ?? 0} tone="mid" />
+            <MetricCard title="Ao vivo" value={summary?.live_predictions ?? 0} tone="info" />
+            <MetricCard
               title="Confiança alta"
               value={summary?.high_confidence_predictions ?? 0}
+              tone="good"
             />
-            <StatCard title="Value bets" value={summary?.value_bets ?? 0} />
+            <MetricCard title="Value bets" value={summary?.value_bets ?? 0} tone="accent" />
           </section>
         </section>
 
@@ -102,10 +245,7 @@ export default function DashboardHome() {
               subtitle={`${summary?.roi_items ?? 0} entradas com odd válida`}
             />
             <StatCard title="Stake total" value={formatMoney(summary?.stake ?? 0)} />
-            <StatCard
-              title="ROI"
-              value={`${((summary?.roi ?? 0) * 100).toFixed(2)}%`}
-            />
+            <StatCard title="ROI" value={formatPercent(summary?.roi ?? 0)} />
             <StatCard
               title="ROI válido"
               value={summary?.roi_items ?? 0}
@@ -118,7 +258,7 @@ export default function DashboardHome() {
           <div className="panel__header">
             <div>
               <h2>Baixas do dia</h2>
-              <p>Baseado no momento em que o sistema consolidou o resultado ({`checked_at`}).</p>
+              <p>Baseado no momento em que o sistema consolidou o resultado.</p>
             </div>
           </div>
 
@@ -131,7 +271,7 @@ export default function DashboardHome() {
             <StatCard title="Erros hoje" value={summary?.today_misses ?? 0} />
             <StatCard
               title="Acurácia hoje"
-              value={`${((summary?.today_accuracy ?? 0) * 100).toFixed(2)}%`}
+              value={formatPercent(summary?.today_accuracy ?? 0)}
             />
             <StatCard
               title="Ao vivo hoje"
@@ -160,7 +300,7 @@ export default function DashboardHome() {
             />
             <StatCard
               title="ROI hoje"
-              value={`${((summary?.today_roi ?? 0) * 100).toFixed(2)}%`}
+              value={formatPercent(summary?.today_roi ?? 0)}
             />
             <StatCard
               title="ROI válido hoje"
@@ -214,7 +354,11 @@ export default function DashboardHome() {
             <StatCard
               title="Modelo carregado"
               value={modelStatus?.model_loaded ? "Sim" : "Não"}
-              subtitle={modelStatus?.model_loaded ? "Pronto para inferência" : "Fallback heurístico"}
+              subtitle={
+                modelStatus?.model_loaded
+                  ? "Pronto para inferência"
+                  : "Fallback heurístico"
+              }
             />
             <StatCard
               title="Último treino"
@@ -242,20 +386,67 @@ export default function DashboardHome() {
               subtitle={formatClasses(modelStatus?.classes)}
             />
           </section>
+
+          <div className="model-detail-grid">
+            <div className="model-detail-card">
+              <span className="model-detail-card__label">Leitura rápida</span>
+              <strong className={getValueTextClass(modelStatus?.accuracy, true)}>
+                {Number(modelStatus?.accuracy ?? 0) >= 0.6
+                  ? "Modelo forte"
+                  : Number(modelStatus?.accuracy ?? 0) >= 0.52
+                  ? "Modelo aceitável"
+                  : "Modelo fraco"}
+              </strong>
+              <small>
+                Baseado na accuracy atual e consistência esperada para inferência.
+              </small>
+            </div>
+
+            <div className="model-detail-card">
+              <span className="model-detail-card__label">Cobertura de treino</span>
+              <strong>{modelStatus?.train_rows ?? 0}</strong>
+              <small>Linhas usadas no treino do modelo.</small>
+            </div>
+
+            <div className="model-detail-card">
+              <span className="model-detail-card__label">Cobertura de teste</span>
+              <strong>{modelStatus?.test_rows ?? 0}</strong>
+              <small>Linhas usadas na validação holdout.</small>
+            </div>
+          </div>
         </section>
 
         <section className="quick-actions">
           <button className="action-card" onClick={() => navigate("/predictions")}>
-            📊 Ver previsões
+            <span className="action-card__emoji">📊</span>
+            <div>
+              <strong>Ver previsões</strong>
+              <small>Acompanhar entradas e picks recentes</small>
+            </div>
           </button>
+
           <button className="action-card" onClick={() => navigate("/results")}>
-            🏁 Ver resultados
+            <span className="action-card__emoji">🏁</span>
+            <div>
+              <strong>Ver resultados</strong>
+              <small>Checar hits, misses e fechamento</small>
+            </div>
           </button>
+
           <button className="action-card" onClick={() => navigate("/market")}>
-            💰 Mercado / CLV
+            <span className="action-card__emoji">💰</span>
+            <div>
+              <strong>Mercado / CLV</strong>
+              <small>Monitorar preço e valor das entradas</small>
+            </div>
           </button>
+
           <button className="action-card" onClick={() => navigate("/model")}>
-            🤖 Status do modelo
+            <span className="action-card__emoji">🤖</span>
+            <div>
+              <strong>Status do modelo</strong>
+              <small>Treino, dataset e qualidade técnica</small>
+            </div>
           </button>
         </section>
 
@@ -292,10 +483,14 @@ export default function DashboardHome() {
                 ) : (
                   predictions.map((item) => (
                     <tr key={item.id}>
-                      <td>{item.league_name}</td>
+                      <td>
+                        <div className="league-cell">
+                          <strong>{item.league_name || "-"}</strong>
+                        </div>
+                      </td>
 
                       <td>
-                        <div style={{ display: "grid", gap: "0.2rem" }}>
+                        <div className="match-cell">
                           <strong>
                             {item.home_team} x {item.away_team}
                           </strong>
@@ -307,17 +502,19 @@ export default function DashboardHome() {
                             </small>
                           ) : (
                             <small className="muted-text">
-                              {item.match_date} • {item.match_time}
+                              {item.match_date || "-"} • {item.match_time || "-"}
                             </small>
                           )}
                         </div>
                       </td>
 
-                      <td>{item.pick}</td>
+                      <td>
+                        <span className="pick-badge">{item.pick || "-"}</span>
+                      </td>
 
                       <td>
                         <span className={`pill pill--${normalizeConfidence(item.confidence)}`}>
-                          {item.confidence}
+                          {item.confidence || "-"}
                         </span>
                       </td>
 
@@ -330,7 +527,7 @@ export default function DashboardHome() {
                       </td>
 
                       <td>
-                        <div style={{ display: "grid", gap: "0.2rem" }}>
+                        <div className="status-tech-cell">
                           {item.is_live ? (
                             <span className="pill pill--status-live">Ao vivo</span>
                           ) : (
@@ -360,6 +557,57 @@ export default function DashboardHome() {
       </main>
     </div>
   );
+}
+
+function MetricCard({ title, value, tone = "neutral" }) {
+  return (
+    <div className={`metric-card metric-card--${tone}`}>
+      <span className="metric-card__title">{title}</span>
+      <strong className="metric-card__value">{value}</strong>
+    </div>
+  );
+}
+
+function getMetricToneByPercentage(value) {
+  const number = Number(value ?? 0);
+  if (number >= 0.6) return "good";
+  if (number >= 0.5) return "mid";
+  return "bad";
+}
+
+function getToneClassFromProfit(value) {
+  const number = Number(value ?? 0);
+  if (number > 0) return "tone-good";
+  if (number < 0) return "tone-bad";
+  return "tone-neutral";
+}
+
+function getToneClassFromRoi(value) {
+  const number = Number(value ?? 0);
+  if (number > 0.05) return "tone-good";
+  if (number < 0) return "tone-bad";
+  return "tone-neutral";
+}
+
+function getToneClassFromAccuracy(value) {
+  const number = Number(value ?? 0);
+  if (number >= 0.6) return "tone-good";
+  if (number >= 0.5) return "tone-mid";
+  return "tone-bad";
+}
+
+function getValueTextClass(value, isPercent = false) {
+  const number = Number(value ?? 0);
+
+  if (isPercent) {
+    if (number > 0.05 || number >= 0.6) return "text-good";
+    if (number < 0) return "text-bad";
+    return "text-neutral";
+  }
+
+  if (number > 0) return "text-good";
+  if (number < 0) return "text-bad";
+  return "text-neutral";
 }
 
 function normalizeConfidence(value) {
@@ -421,4 +669,3 @@ function formatClasses(classes) {
   if (!Array.isArray(classes) || classes.length === 0) return "Sem classes";
   return `Classes: ${classes.join(" • ")}`;
 }
-
