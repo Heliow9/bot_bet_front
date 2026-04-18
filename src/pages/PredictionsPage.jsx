@@ -16,6 +16,7 @@ export default function PredictionsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [confidenceFilter, setConfidenceFilter] = useState("all");
   const [sortBy, setSortBy] = useState("confidence");
+  const [lastRefreshAt, setLastRefreshAt] = useState(null);
 
   async function loadData(isRefresh = false) {
     try {
@@ -26,8 +27,10 @@ export default function PredictionsPage() {
       }
 
       setError("");
+
       const response = await api.get("/dashboard/predictions/pending?limit=50");
       setItems(response.data.items || []);
+      setLastRefreshAt(new Date());
     } catch (err) {
       const status = err?.response?.status;
 
@@ -46,6 +49,12 @@ export default function PredictionsPage() {
 
   useEffect(() => {
     loadData();
+
+    const interval = setInterval(() => {
+      loadData(true);
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
   function handleLogout() {
@@ -86,7 +95,10 @@ export default function PredictionsPage() {
       }
 
       if (sortBy === "updated") {
-        return new Date(b.last_checked_at || 0) - new Date(a.last_checked_at || 0);
+        return (
+          getDateTimestamp(b.last_checked_at || b.checked_at) -
+          getDateTimestamp(a.last_checked_at || a.checked_at)
+        );
       }
 
       if (sortBy === "probability") {
@@ -119,6 +131,25 @@ export default function PredictionsPage() {
     };
   }, [filteredItems]);
 
+  const liveSummary = useMemo(() => {
+    const liveItems = filteredItems.filter((item) => item.is_live);
+
+    const recentlyChecked = [...liveItems].sort(
+      (a, b) =>
+        getDateTimestamp(b.last_checked_at || b.checked_at) -
+        getDateTimestamp(a.last_checked_at || a.checked_at)
+    );
+
+    return {
+      total: liveItems.length,
+      matches: liveItems.slice(0, 3),
+      lastCheckedAt:
+        recentlyChecked.length > 0
+          ? recentlyChecked[0].last_checked_at || recentlyChecked[0].checked_at
+          : null,
+    };
+  }, [filteredItems]);
+
   return (
     <div className="app-layout">
       <Sidebar />
@@ -130,19 +161,19 @@ export default function PredictionsPage() {
           eyebrow="Operação diária"
         />
 
-        <section className="panel predictions-shell">
-          <div className="predictions-hero">
+        <section className="panel predictions-shell predictions-shell--mobile-optimized">
+          <div className="predictions-hero predictions-hero--compact">
             <div className="predictions-hero__content">
               <span className="predictions-hero__eyebrow">Monitoramento</span>
               <h2>Central de previsões pendentes</h2>
               <p>
-                Visualize rapidamente partidas em aberto, confiança da análise,
-                status técnico e a probabilidade mais forte de cada jogo.
+                Acompanhe partidas em aberto, confiança, status técnico e cenário
+                mais forte de forma rápida.
               </p>
             </div>
 
             <button
-              className={`action-btn ${refreshing ? "is-loading" : ""}`}
+              className={`action-btn action-btn--full-mobile ${refreshing ? "is-loading" : ""}`}
               onClick={() => loadData(true)}
               disabled={refreshing}
             >
@@ -150,7 +181,7 @@ export default function PredictionsPage() {
             </button>
           </div>
 
-          <div className="stats-strip">
+          <div className="stats-strip stats-strip--mobile-2col">
             <article className="metric-card metric-card--strong">
               <span>Total</span>
               <strong>{stats.total}</strong>
@@ -172,12 +203,12 @@ export default function PredictionsPage() {
             <article className="metric-card">
               <span>Prob. média topo</span>
               <strong>{stats.avgTopProbability}%</strong>
-              <small>força média do cenário</small>
+              <small>força média</small>
             </article>
           </div>
 
-          <div className="toolbar-card">
-            <div className="toolbar-grid">
+          <div className="toolbar-card toolbar-card--mobile">
+            <div className="toolbar-grid toolbar-grid--mobile">
               <div className="field-group field-group--search">
                 <label htmlFor="prediction-search">Buscar previsão</label>
                 <input
@@ -231,7 +262,7 @@ export default function PredictionsPage() {
               </div>
             </div>
 
-            <div className="toolbar-tags">
+            <div className="toolbar-tags toolbar-tags--scroll">
               <button
                 className={`toolbar-tag ${statusFilter === "all" ? "is-active" : ""}`}
                 onClick={() => setStatusFilter("all")}
@@ -251,7 +282,91 @@ export default function PredictionsPage() {
                 Alta confiança
               </button>
             </div>
+
+            <div className="toolbar-meta toolbar-meta--compact">
+              <small className="muted-text">
+                Última atualização da tela:{" "}
+                <strong>{formatDateTime(lastRefreshAt)}</strong>
+              </small>
+            </div>
           </div>
+
+          <section className="panel panel--spaced live-summary-panel">
+            <div className="panel__header">
+              <div>
+                <h2>Resumo live</h2>
+                <p>Visão rápida das partidas em andamento.</p>
+              </div>
+            </div>
+
+            {liveSummary.total === 0 ? (
+              <div className="state-box">Nenhuma partida em live neste momento.</div>
+            ) : (
+              <>
+                <div className="stats-strip stats-strip--mobile-2col">
+                  <article className="metric-card metric-card--strong">
+                    <span>Jogos em live</span>
+                    <strong>{liveSummary.total}</strong>
+                    <small>monitorados agora</small>
+                  </article>
+
+                  <article className="metric-card">
+                    <span>Última checagem</span>
+                    <strong>{formatTimeOnly(liveSummary.lastCheckedAt)}</strong>
+                    <small>{formatDateOnly(liveSummary.lastCheckedAt)}</small>
+                  </article>
+                </div>
+
+                <div className="predictions-mobile-list predictions-mobile-list--compact">
+                  {liveSummary.matches.map((item) => (
+                    <article className="prediction-premium-card" key={`live-${item.id}`}>
+                      <div className="prediction-premium-card__head">
+                        <div className="prediction-premium-card__league-wrap">
+                          <span className="league-chip">
+                            {item.league_name || "Liga não informada"}
+                          </span>
+                          <span className="live-dot">Ao vivo</span>
+                        </div>
+
+                        <span className={`pill pill--${normalizeConfidence(item.confidence)}`}>
+                          {item.confidence || "Baixa"}
+                        </span>
+                      </div>
+
+                      <div className="match-block">
+                        <h3>
+                          {item.home_team} <span>x</span> {item.away_team}
+                        </h3>
+                        <p>
+                          Status técnico:{" "}
+                          <strong>{item.last_status_text || "Ao vivo"}</strong>
+                        </p>
+                      </div>
+
+                      <div className="info-grid">
+                        <div className="info-cell">
+                          <span>Pick</span>
+                          <strong>{item.pick || "-"}</strong>
+                        </div>
+
+                        <div className="info-cell">
+                          <span>Última checagem</span>
+                          <strong>{formatTimeOnly(item.last_checked_at || item.checked_at)}</strong>
+                        </div>
+
+                        <div className="info-cell info-cell--full">
+                          <span>Placar</span>
+                          <strong>
+                            {item.home_score ?? "-"} x {item.away_score ?? "-"}
+                          </strong>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </>
+            )}
+          </section>
 
           {loading ? (
             <div className="state-box">Carregando previsões...</div>
@@ -328,12 +443,14 @@ export default function PredictionsPage() {
 
                         <div className="info-cell">
                           <span>Status técnico</span>
-                          <strong>{item.is_live ? "Ao vivo" : item.last_status_text || "Aguardando"}</strong>
+                          <strong>
+                            {item.is_live ? "Ao vivo" : item.last_status_text || "Aguardando"}
+                          </strong>
                         </div>
 
                         <div className="info-cell info-cell--full">
                           <span>Última checagem</span>
-                          <strong>{formatDateTime(item.last_checked_at)}</strong>
+                          <strong>{formatDateTime(item.last_checked_at || item.checked_at)}</strong>
                         </div>
                       </div>
                     </article>
@@ -408,7 +525,7 @@ export default function PredictionsPage() {
 
                           <td>
                             <small className="muted-text">
-                              {formatDateTime(item.last_checked_at)}
+                              {formatDateTime(item.last_checked_at || item.checked_at)}
                             </small>
                           </td>
                         </tr>
@@ -481,14 +598,66 @@ function getOutcomeLabel(outcome) {
   return "Fora";
 }
 
+function normalizeBackendDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+
+  const text = String(value).trim();
+  if (!text) return null;
+
+  const hasTimezone =
+    text.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(text);
+
+  const normalized = hasTimezone ? text : `${text}Z`;
+  const date = new Date(normalized);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date;
+}
+
+function getDateTimestamp(value) {
+  const date = normalizeBackendDate(value);
+  return date ? date.getTime() : 0;
+}
+
 function formatDateTime(value) {
-  if (!value) return "-";
+  const date = normalizeBackendDate(value);
+  if (!date) return "-";
 
   try {
-    const date = new Date(value);
     return date.toLocaleString("pt-BR", {
+      timeZone: "America/Recife",
       dateStyle: "short",
       timeStyle: "short",
+    });
+  } catch {
+    return "-";
+  }
+}
+
+function formatTimeOnly(value) {
+  const date = normalizeBackendDate(value);
+  if (!date) return "-";
+
+  try {
+    return date.toLocaleTimeString("pt-BR", {
+      timeZone: "America/Recife",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "-";
+  }
+}
+
+function formatDateOnly(value) {
+  const date = normalizeBackendDate(value);
+  if (!date) return "-";
+
+  try {
+    return date.toLocaleDateString("pt-BR", {
+      timeZone: "America/Recife",
     });
   } catch {
     return "-";

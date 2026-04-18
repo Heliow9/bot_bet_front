@@ -87,19 +87,23 @@ export default function ModelPage() {
           </div>
         ) : (
           <>
-            <section className="panel panel--spaced">
+            <section className="panel panel--spaced model-page-shell">
               <div className="panel__header">
                 <div>
                   <h2>Status do modelo</h2>
-                  <p>Saúde da última versão treinada e disponibilidade para inferência.</p>
+                  <p>Saúde da versão treinada e disponibilidade para inferência.</p>
                 </div>
               </div>
 
-              <section className="stats-grid">
+              <section className="stats-grid stats-grid--mobile-stack">
                 <StatCard
                   title="Modelo carregado"
                   value={modelStatus?.model_loaded ? "Sim" : "Não"}
-                  subtitle={modelStatus?.model_loaded ? "Pronto para predição" : "Fallback heurístico ativo"}
+                  subtitle={
+                    modelStatus?.model_loaded
+                      ? "Pronto para predição"
+                      : "Fallback heurístico ativo"
+                  }
                 />
                 <StatCard
                   title="Último treino"
@@ -129,7 +133,7 @@ export default function ModelPage() {
               </section>
             </section>
 
-            <section className="stats-grid">
+            <section className="stats-grid stats-grid--mobile-stack">
               <StatCard title="Jogos resolvidos" value={summary.resolved_total} />
               <StatCard title="Acertos" value={summary.hits} />
               <StatCard title="Erros" value={summary.misses} />
@@ -139,15 +143,9 @@ export default function ModelPage() {
               />
             </section>
 
-            <section className="stats-grid">
-              <StatCard
-                title="Lucro total"
-                value={formatMoney(summary.profit)}
-              />
-              <StatCard
-                title="Stake total"
-                value={formatMoney(summary.stake)}
-              />
+            <section className="stats-grid stats-grid--mobile-stack">
+              <StatCard title="Lucro total" value={formatMoney(summary.profit)} />
+              <StatCard title="Stake total" value={formatMoney(summary.stake)} />
               <StatCard
                 title="ROI geral"
                 value={`${(Number(summary.roi || 0) * 100).toFixed(2)}%`}
@@ -164,13 +162,12 @@ export default function ModelPage() {
                 <div>
                   <h2>Performance por confiança</h2>
                   <p>
-                    Veja como o modelo performa em alta, média e baixa confiança,
-                    incluindo acurácia, lucro e ROI.
+                    Compare alta, média e baixa confiança em acurácia, lucro e ROI.
                   </p>
                 </div>
               </div>
 
-              <div className="confidence-grid">
+              <div className="confidence-grid confidence-grid--mobile">
                 {byConfidence.length === 0 ? (
                   <div className="table-empty">
                     Ainda não há dados suficientes por confiança.
@@ -236,7 +233,7 @@ export default function ModelPage() {
                 </div>
               </div>
 
-              <section className="stats-grid">
+              <section className="stats-grid stats-grid--mobile-stack">
                 <StatCard
                   title="Classes"
                   value={Array.isArray(modelStatus?.classes) ? modelStatus.classes.length : 0}
@@ -261,9 +258,7 @@ export default function ModelPage() {
               <div className="panel__header">
                 <div>
                   <h2>Performance por liga</h2>
-                  <p>
-                    Compare acurácia, lucro e ROI por campeonato.
-                  </p>
+                  <p>Compare acurácia, lucro e ROI por campeonato.</p>
                 </div>
               </div>
 
@@ -316,22 +311,16 @@ export default function ModelPage() {
               <div className="panel__header">
                 <div>
                   <h2>Features do modelo</h2>
-                  <p>Colunas efetivamente usadas na última versão treinada.</p>
+                  <p>Colunas usadas na última versão treinada.</p>
                 </div>
               </div>
 
               {features.length === 0 ? (
                 <div className="table-empty">Nenhuma feature registrada no modelo.</div>
               ) : (
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: "0.6rem",
-                  }}
-                >
+                <div className="features-cloud">
                   {features.map((feature) => (
-                    <span key={feature} className="pill pill--status-neutral">
+                    <span key={feature} className="pill pill--status-neutral feature-chip">
                       {feature}
                     </span>
                   ))}
@@ -388,6 +377,7 @@ function formatDateTime(value) {
     if (Number.isNaN(date.getTime())) return "-";
 
     return date.toLocaleString("pt-BR", {
+      timeZone: "America/Recife",
       dateStyle: "short",
       timeStyle: "short",
     });

@@ -1850,3 +1850,538 @@
     width: 100%;
   }
 }
+
+/* =========================
+   MARKET PAGE / CLV
+========================= */
+
+.market-panel {
+  overflow: hidden;
+}
+
+.panel__header--market {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.market-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.market-summary__card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  padding: 16px;
+  background:
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.08), transparent 35%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(17, 24, 39, 0.98));
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  box-shadow: 0 12px 26px rgba(2, 8, 23, 0.2);
+}
+
+.market-summary__card--total {
+  border-color: rgba(96, 165, 250, 0.2);
+}
+
+.market-summary__card--pending {
+  border-color: rgba(234, 179, 8, 0.2);
+}
+
+.market-summary__card--live {
+  border-color: rgba(37, 99, 235, 0.22);
+}
+
+.market-summary__card--resolved {
+  border-color: rgba(22, 163, 74, 0.22);
+}
+
+.market-summary__label {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #93c5fd;
+  margin-bottom: 8px;
+}
+
+.market-summary__card strong {
+  display: block;
+  font-size: 30px;
+  line-height: 1;
+  color: #f8fafc;
+}
+
+.market-table {
+  min-width: 1080px;
+}
+
+.market-row--resolved {
+  background: linear-gradient(90deg, rgba(22, 163, 74, 0.03), transparent);
+}
+
+.market-row--live {
+  background: linear-gradient(90deg, rgba(37, 99, 235, 0.04), transparent);
+}
+
+.market-row--pending {
+  background: linear-gradient(90deg, rgba(234, 179, 8, 0.04), transparent);
+}
+
+.market-game {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.market-game__teams {
+  font-size: 15px;
+  font-weight: 800;
+  color: #f8fafc;
+  line-height: 1.35;
+}
+
+.market-game__teams span {
+  color: #64748b;
+}
+
+.market-game__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.market-game__meta small {
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.market-pick {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.12);
+  border: 1px solid rgba(96, 165, 250, 0.16);
+  color: #dbeafe;
+  font-weight: 800;
+}
+
+.market-mobile-list {
+  display: none;
+  gap: 14px;
+}
+
+.market-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  padding: 15px;
+  background:
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.1), transparent 30%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(17, 24, 39, 0.98));
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  box-shadow: 0 14px 30px rgba(2, 8, 23, 0.22);
+}
+
+.market-card--resolved {
+  border-color: rgba(22, 163, 74, 0.2);
+}
+
+.market-card--live {
+  border-color: rgba(37, 99, 235, 0.22);
+}
+
+.market-card--pending {
+  border-color: rgba(234, 179, 8, 0.2);
+}
+
+.market-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.market-card__league-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.market-card__match {
+  margin-bottom: 14px;
+}
+
+.market-card__match h3 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  line-height: 1.25;
+  color: #f8fafc;
+}
+
+.market-card__match h3 span {
+  color: #64748b;
+}
+
+.market-card__match p {
+  margin: 0;
+  font-size: 13px;
+  color: #cbd5e1;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+.market-card__pick {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.98), rgba(15, 23, 42, 1));
+  border: 1px solid rgba(96, 165, 250, 0.12);
+  margin-bottom: 12px;
+}
+
+.market-card__pick span {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #93c5fd;
+}
+
+.market-card__pick strong {
+  color: #ffffff;
+  font-size: 15px;
+}
+
+.market-card__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.market-info-cell {
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.market-info-cell span {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #93c5fd;
+  margin-bottom: 5px;
+}
+
+.market-info-cell strong {
+  color: #f8fafc;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+@media (max-width: 1180px) {
+  .market-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 991px) {
+  .market-mobile-list {
+    display: grid;
+  }
+
+  .table-wrap--desktop {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .market-summary {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .market-summary__card {
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .market-summary__card strong {
+    font-size: 24px;
+  }
+
+  .market-card {
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .market-card__top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .market-card__match h3 {
+    font-size: 18px;
+  }
+
+  .market-card__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+.predictions-shell--mobile-optimized {
+  overflow: hidden;
+}
+
+.predictions-hero--compact {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.action-btn--full-mobile {
+  min-width: 180px;
+}
+
+.stats-strip--mobile-2col {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.toolbar-card--mobile {
+  overflow: hidden;
+}
+
+.toolbar-grid--mobile {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.toolbar-grid--mobile .field-group {
+  min-width: 0;
+}
+
+.toolbar-grid--mobile input,
+.toolbar-grid--mobile select {
+  width: 100%;
+}
+
+.toolbar-tags--scroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-top: 12px;
+  scrollbar-width: thin;
+}
+
+.toolbar-tags--scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.toolbar-meta--compact {
+  margin-top: 12px;
+}
+
+.live-summary-panel {
+  margin-top: 18px;
+}
+
+.predictions-mobile-list--compact {
+  margin-top: 16px;
+}
+
+.features-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.feature-chip {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.confidence-grid--mobile {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.stats-grid--mobile-stack {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 1024px) {
+  .toolbar-grid--mobile {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stats-strip--mobile-2col,
+  .stats-grid--mobile-stack,
+  .confidence-grid--mobile {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .predictions-hero--compact {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .action-btn--full-mobile {
+    width: 100%;
+    min-width: 100%;
+  }
+
+  .toolbar-grid--mobile {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-strip--mobile-2col,
+  .stats-grid--mobile-stack,
+  .confidence-grid--mobile {
+    grid-template-columns: 1fr;
+  }
+
+  .toolbar-card {
+    padding: 14px;
+  }
+
+  .toolbar-grid {
+    gap: 12px;
+  }
+
+  .field-group label {
+    font-size: 12px;
+  }
+
+  .field-group input,
+  .field-group select {
+    min-height: 42px;
+    font-size: 14px;
+  }
+
+  .predictions-hero__content h2 {
+    font-size: 1.3rem;
+    line-height: 1.2;
+  }
+
+  .predictions-hero__content p {
+    font-size: 0.92rem;
+    line-height: 1.45;
+  }
+
+  .prediction-premium-card {
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .prediction-premium-card__head {
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .prediction-premium-card__league-wrap {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .match-block h3 {
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+
+  .highlight-banner {
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .highlight-banner__score strong {
+    font-size: 1rem;
+  }
+
+  .info-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .info-cell--full {
+    grid-column: auto;
+  }
+
+  .table-wrap--desktop {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .panel {
+    padding: 14px;
+  }
+
+  .toolbar-card {
+    padding: 12px;
+  }
+
+  .metric-card {
+    padding: 12px;
+  }
+
+  .metric-card strong {
+    font-size: 1.15rem;
+  }
+
+  .toolbar-tag {
+    white-space: nowrap;
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+
+  .live-dot,
+  .league-chip,
+  .pill {
+    font-size: 11px;
+  }
+
+  .prob-line__top strong {
+    font-size: 13px;
+  }
+
+  .prob-line__top span {
+    font-size: 12px;
+  }
+
+  .confidence-card {
+    padding: 14px;
+  }
+
+  .confidence-card__footer {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: grid;
+    gap: 10px;
+  }
+}
