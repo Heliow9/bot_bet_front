@@ -11,11 +11,13 @@ export default function MarketPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  async function loadData() {
+  async function loadData({ silent = false } = {}) {
     try {
+      if (!silent) setLoading(true);
+
       setError("");
       const response = await api.get("/dashboard/market?limit=50");
-      setItems(response.data.items || []);
+      setItems(Array.isArray(response.data?.items) ? response.data.items : []);
     } catch (err) {
       const status = err?.response?.status;
 
@@ -26,14 +28,21 @@ export default function MarketPage() {
         return;
       }
 
+      console.error("Erro ao carregar mercado:", err);
       setError("Não foi possível carregar os dados de mercado.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
   useEffect(() => {
     loadData();
+
+    const interval = setInterval(() => {
+      loadData({ silent: true });
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
   function handleLogout() {
@@ -46,12 +55,16 @@ export default function MarketPage() {
     const pending = items.filter((item) => getMatchStatus(item).type === "pending").length;
     const live = items.filter((item) => getMatchStatus(item).type === "live").length;
     const resolved = items.filter((item) => getMatchStatus(item).type === "resolved").length;
+    const valueBets = items.filter((item) => Boolean(item?.has_value_bet)).length;
+    const doubleChance = items.filter((item) => normalizeMarketType(item) === "double_chance").length;
 
     return {
       pending,
       live,
       resolved,
       total: items.length,
+      valueBets,
+      doubleChance,
     };
   }, [items]);
 
@@ -71,8 +84,8 @@ export default function MarketPage() {
             <div>
               <h2>Leitura de mercado</h2>
               <p>
-                Veja abertura, odd atual, edge, direção da linha e se a partida
-                está pendente, ao vivo ou resolvida.
+                Veja abertura, odd atual, edge, direção da linha, tipo de mercado e
+                se a partida está pendente, ao vivo ou resolvida.
               </p>
             </div>
 
@@ -101,6 +114,37 @@ export default function MarketPage() {
             )}
           </div>
 
+          {!loading && !error && items.length > 0 ? (
+            <div className="context-strip" style={{ marginBottom: "1rem" }}>
+              <div className="context-chip">
+                <span className="context-chip__label">Value bets</span>
+                <strong>{summary.valueBets}</strong>
+              </div>
+
+              <div className="context-chip">
+                <span className="context-chip__label">Dupla hipótese</span>
+                <strong>{summary.doubleChance}</strong>
+              </div>
+
+              <div className="context-chip">
+                <span className="context-chip__label">Mercado 1X2</span>
+                <strong>{summary.total - summary.doubleChance}</strong>
+              </div>
+
+              <div className="context-chip">
+                <span className="context-chip__label">Melhor edge</span>
+                <strong className={edgeClass(getBestEdge(items))}>
+                  {formatEdge(getBestEdge(items))}
+                </strong>
+              </div>
+
+              <div className="context-chip">
+                <span className="context-chip__label">Atualização</span>
+                <strong>30s</strong>
+              </div>
+            </div>
+          ) : null}
+
           {loading ? (
             <div className="table-empty">Carregando mercado...</div>
           ) : error ? (
@@ -113,6 +157,7 @@ export default function MarketPage() {
                     <tr>
                       <th>Jogo</th>
                       <th>Status</th>
+                      <th>Mercado</th>
                       <th>Pick</th>
                       <th>Bookmaker</th>
                       <th>Abertura</th>
@@ -126,13 +171,19 @@ export default function MarketPage() {
                   <tbody>
                     {items.length === 0 ? (
                       <tr>
-                        <td colSpan="9" className="table-empty">
+                        <td colSpan="10" className="table-empty">
                           Nenhum dado de mercado encontrado.
                         </td>
                       </tr>
                     ) : (
                       items.map((item, index) => {
                         const matchStatus = getMatchStatus(item);
+                        const marketType = normalizeMarketType(item);
+                        const marketLabel = formatMarketType(marketType);
+                        const marketClass =
+                          marketType === "double_chance"
+                            ? "market-type-badge market-type-badge--double_chance"
+                            : "market-type-badge market-type-badge--1x2";
 
                         return (
                           <tr
@@ -151,8 +202,13 @@ export default function MarketPage() {
 
                                 <div className="market-game__meta">
                                   <small>{item.league_name || "-"}</small>
+
                                   {item.match_date ? (
                                     <small>{formatDateTime(item.match_date)}</small>
+                                  ) : null}
+
+                                  {item.confidence ? (
+                                    <small>Confiança: {formatConfidence(item.confidence)}</small>
                                   ) : null}
                                 </div>
                               </div>
@@ -165,7 +221,16 @@ export default function MarketPage() {
                             </td>
 
                             <td>
-                              <span className="market-pick">{item.pick || "-"}</span>
+                              <span className={marketClass}>{marketLabel}</span>
+                            </td>
+
+                            <td>
+                              <div className="league-cell">
+                                <span className="market-pick">
+                                  {formatPickLabel(item.pick, marketType)}
+                                </span>
+                                <small className="muted-text">{item.pick || "-"}</small>
+                              </div>
                             </td>
 
                             <td>{item.bookmaker || "-"}</td>
@@ -184,9 +249,17 @@ export default function MarketPage() {
                             </td>
 
                             <td>
-                              <span className={edgeClass(item.edge)}>
-                                {formatEdge(item.edge)}
-                              </span>
+                              <div className="league-cell">
+                                <span className={edgeClass(item.edge)}>
+                                  {formatEdge(item.edge)}
+                                </span>
+
+                                {item.fair_odds !== undefined && item.fair_odds !== null ? (
+                                  <small className="muted-text">
+                                    Justa: {formatOdd(item.fair_odds)}
+                                  </small>
+                                ) : null}
+                              </div>
                             </td>
 
                             <td>
@@ -210,6 +283,12 @@ export default function MarketPage() {
                 ) : (
                   items.map((item, index) => {
                     const matchStatus = getMatchStatus(item);
+                    const marketType = normalizeMarketType(item);
+                    const marketLabel = formatMarketType(marketType);
+                    const marketClass =
+                      marketType === "double_chance"
+                        ? "market-type-badge market-type-badge--double_chance"
+                        : "market-type-badge market-type-badge--1x2";
 
                     return (
                       <article
@@ -226,6 +305,7 @@ export default function MarketPage() {
                             <span className={`pill ${matchStatus.className}`}>
                               {matchStatus.label}
                             </span>
+                            <span className={marketClass}>{marketLabel}</span>
                           </div>
 
                           {item.has_value_bet ? (
@@ -246,7 +326,7 @@ export default function MarketPage() {
 
                         <div className="market-card__pick">
                           <span>Pick</span>
-                          <strong>{item.pick || "-"}</strong>
+                          <strong>{formatPickLabel(item.pick, marketType)}</strong>
                         </div>
 
                         <div className="market-card__grid">
@@ -290,6 +370,20 @@ export default function MarketPage() {
                             <span>Status</span>
                             <strong>{matchStatus.label}</strong>
                           </div>
+
+                          {item.fair_odds !== undefined && item.fair_odds !== null ? (
+                            <div className="market-info-cell">
+                              <span>Odd justa</span>
+                              <strong>{formatOdd(item.fair_odds)}</strong>
+                            </div>
+                          ) : null}
+
+                          {item.confidence ? (
+                            <div className="market-info-cell">
+                              <span>Confiança</span>
+                              <strong>{formatConfidence(item.confidence)}</strong>
+                            </div>
+                          ) : null}
                         </div>
                       </article>
                     );
@@ -310,6 +404,7 @@ function getMatchStatus(item) {
       item?.status ||
       item?.match_status ||
       item?.fixture_status ||
+      item?.prediction_status ||
       ""
   )
     .trim()
@@ -323,11 +418,16 @@ function getMatchStatus(item) {
     };
   }
 
-  if (item?.is_resolved === true || rawStatus === "resolved") {
+  if (
+    item?.is_resolved === true ||
+    rawStatus === "resolved" ||
+    rawStatus === "hit" ||
+    rawStatus === "miss"
+  ) {
     return {
       type: "resolved",
       label: "Resolvido",
-      className: "pill--status-hit",
+      className: rawStatus === "miss" ? "pill--status-miss" : "pill--status-hit",
     };
   }
 
@@ -339,19 +439,58 @@ function getMatchStatus(item) {
     };
   }
 
-  if (rawStatus === "hit" || rawStatus === "miss") {
-    return {
-      type: "resolved",
-      label: "Resolvido",
-      className: "pill--status-hit",
-    };
-  }
-
   return {
     type: "unknown",
     label: "Sem status",
     className: "pill--status-neutral",
   };
+}
+
+function normalizeMarketType(item) {
+  const raw = String(item?.market_type || item?.market || "1x2")
+    .trim()
+    .toLowerCase();
+
+  if (
+    raw === "double_chance" ||
+    raw === "double chance" ||
+    raw === "dupla hipotese" ||
+    raw === "dupla hipótese"
+  ) {
+    return "double_chance";
+  }
+
+  return "1x2";
+}
+
+function formatMarketType(value) {
+  return value === "double_chance" ? "Dupla hipótese" : "1X2";
+}
+
+function formatPickLabel(pick, marketType = "1x2") {
+  const normalizedPick = String(pick || "").trim().toUpperCase();
+
+  if (!normalizedPick) return "-";
+
+  if (marketType === "double_chance") {
+    if (normalizedPick === "1X") return "Casa ou empate";
+    if (normalizedPick === "X2") return "Empate ou fora";
+    if (normalizedPick === "12") return "Casa ou fora";
+  }
+
+  if (normalizedPick === "1") return "Casa";
+  if (normalizedPick === "X") return "Empate";
+  if (normalizedPick === "2") return "Fora";
+
+  return normalizedPick;
+}
+
+function formatConfidence(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (raw.includes("alta")) return "Alta";
+  if (raw.includes("média") || raw.includes("media")) return "Média";
+  if (raw.includes("baixa")) return "Baixa";
+  return value || "-";
 }
 
 function normalizeMovementDirection(direction, movement) {
@@ -409,4 +548,16 @@ function edgeClass(value) {
   if (num >= 0.05) return "text-good";
   if (num <= 0) return "text-bad";
   return "text-neutral";
+}
+
+function getBestEdge(items) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+
+  const validEdges = items
+    .map((item) => Number(item?.edge))
+    .filter((value) => Number.isFinite(value));
+
+  if (validEdges.length === 0) return null;
+
+  return Math.max(...validEdges);
 }
