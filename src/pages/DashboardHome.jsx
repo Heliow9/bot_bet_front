@@ -61,8 +61,32 @@ export default function DashboardHome() {
       pending: Number(summary?.pending_predictions ?? 0),
       live: Number(summary?.live_predictions ?? 0),
       todayResolved: Number(summary?.today_resolved_predictions ?? 0),
+      totalPredictions: Number(summary?.total_predictions ?? 0),
+      resolvedPredictions: Number(summary?.resolved_predictions ?? 0),
+      valueBets: Number(summary?.value_bets ?? 0),
+      highConfidence: Number(summary?.high_confidence_predictions ?? 0),
     };
   }, [summary]);
+
+  const marketBreakdown = useMemo(() => {
+    const total = predictions.length || 0;
+
+    const oneXTwo = predictions.filter(
+      (item) => normalizeMarketType(item.market_type) === "1x2"
+    ).length;
+
+    const doubleChance = predictions.filter(
+      (item) => normalizeMarketType(item.market_type) === "double_chance"
+    ).length;
+
+    return {
+      total,
+      oneXTwo,
+      doubleChance,
+      oneXTwoRate: total ? oneXTwo / total : 0,
+      doubleChanceRate: total ? doubleChance / total : 0,
+    };
+  }, [predictions]);
 
   const executiveInsight = useMemo(() => {
     const roi = Number(summary?.roi ?? 0);
@@ -71,12 +95,17 @@ export default function DashboardHome() {
     const modelAcc = Number(modelStatus?.accuracy ?? 0);
     const pending = Number(summary?.pending_predictions ?? 0);
     const live = Number(summary?.live_predictions ?? 0);
+    const dcCount = predictions.filter(
+      (item) => normalizeMarketType(item.market_type) === "double_chance"
+    ).length;
 
     if (roi > 0 && acc >= 0.55 && modelAcc >= 0.55) {
       return {
         tone: "good",
         title: "Operação saudável",
-        text: `A operação está positiva, com ROI geral em ${formatPercent(roi)} e acurácia em ${formatPercent(
+        text: `A operação está positiva, com ROI geral em ${formatPercent(
+          roi
+        )} e acurácia em ${formatPercent(
           acc
         )}. O modelo também está em boa condição para suportar entradas com maior confiança.`,
       };
@@ -98,12 +127,20 @@ export default function DashboardHome() {
       };
     }
 
+    if (dcCount > 0) {
+      return {
+        tone: "neutral",
+        title: "Mercados mistos em uso",
+        text: `O sistema já está trabalhando com 1X2 e dupla hipótese. Vale acompanhar quais mercados estão entregando melhor combinação entre acurácia, ROI e edge.`,
+      };
+    }
+
     return {
       tone: "neutral",
       title: "Operação estável",
       text: `O painel mostra operação estável neste momento. O ideal é acompanhar lucro, ROI e qualidade do modelo em conjunto antes de aumentar exposição.`,
     };
-  }, [summary, modelStatus]);
+  }, [summary, modelStatus, predictions]);
 
   if (loading) {
     return (
@@ -179,22 +216,26 @@ export default function DashboardHome() {
             <span className="context-chip__label">Resolvidas hoje</span>
             <strong>{hero.todayResolved}</strong>
           </div>
+
           <div className="context-chip">
             <span className="context-chip__label">Lucro hoje</span>
             <strong className={getValueTextClass(summary?.today_profit)}>
               {formatMoney(summary?.today_profit ?? 0)}
             </strong>
           </div>
+
           <div className="context-chip">
             <span className="context-chip__label">ROI hoje</span>
             <strong className={getValueTextClass(summary?.today_roi, true)}>
               {formatPercent(summary?.today_roi ?? 0)}
             </strong>
           </div>
+
           <div className="context-chip">
             <span className="context-chip__label">Modelo carregado</span>
             <strong>{modelStatus?.model_loaded ? "Sim" : "Não"}</strong>
           </div>
+
           <div className="context-chip">
             <span className="context-chip__label">Último treino</span>
             <strong>{formatDateTime(modelStatus?.last_training_at)}</strong>
@@ -233,6 +274,40 @@ export default function DashboardHome() {
         <section className="panel panel--spaced">
           <div className="panel__header">
             <div>
+              <h2>Leitura por mercado</h2>
+              <p>Distribuição recente entre 1X2 e dupla hipótese.</p>
+            </div>
+          </div>
+
+          <section className="stats-grid">
+            <StatCard
+              title="Mercado 1X2"
+              value={marketBreakdown.oneXTwo}
+              subtitle={`${formatPercent(marketBreakdown.oneXTwoRate)} das previsões listadas`}
+            />
+            <StatCard
+              title="Dupla hipótese"
+              value={marketBreakdown.doubleChance}
+              subtitle={`${formatPercent(
+                marketBreakdown.doubleChanceRate
+              )} das previsões listadas`}
+            />
+            <StatCard
+              title="Value bets"
+              value={hero.valueBets}
+              subtitle="Entradas com valor detectado"
+            />
+            <StatCard
+              title="Confiança alta"
+              value={hero.highConfidence}
+              subtitle="Base geral do sistema"
+            />
+          </section>
+        </section>
+
+        <section className="panel panel--spaced">
+          <div className="panel__header">
+            <div>
               <h2>Financeiro geral</h2>
               <p>Resultados financeiros considerando stake fixa de 1 unidade.</p>
             </div>
@@ -263,20 +338,14 @@ export default function DashboardHome() {
           </div>
 
           <section className="stats-grid">
-            <StatCard
-              title="Resolvidas hoje"
-              value={summary?.today_resolved_predictions ?? 0}
-            />
+            <StatCard title="Resolvidas hoje" value={summary?.today_resolved_predictions ?? 0} />
             <StatCard title="Acertos hoje" value={summary?.today_hits ?? 0} />
             <StatCard title="Erros hoje" value={summary?.today_misses ?? 0} />
             <StatCard
               title="Acurácia hoje"
               value={formatPercent(summary?.today_accuracy ?? 0)}
             />
-            <StatCard
-              title="Ao vivo hoje"
-              value={summary?.today_live_predictions ?? 0}
-            />
+            <StatCard title="Ao vivo hoje" value={summary?.today_live_predictions ?? 0} />
           </section>
         </section>
 
@@ -294,14 +363,8 @@ export default function DashboardHome() {
               value={formatMoney(summary?.today_profit ?? 0)}
               subtitle={`${summary?.today_roi_items ?? 0} entradas com odd válida`}
             />
-            <StatCard
-              title="Stake hoje"
-              value={formatMoney(summary?.today_stake ?? 0)}
-            />
-            <StatCard
-              title="ROI hoje"
-              value={formatPercent(summary?.today_roi ?? 0)}
-            />
+            <StatCard title="Stake hoje" value={formatMoney(summary?.today_stake ?? 0)} />
+            <StatCard title="ROI hoje" value={formatPercent(summary?.today_roi ?? 0)} />
             <StatCard
               title="ROI válido hoje"
               value={summary?.today_roi_items ?? 0}
@@ -355,9 +418,7 @@ export default function DashboardHome() {
               title="Modelo carregado"
               value={modelStatus?.model_loaded ? "Sim" : "Não"}
               subtitle={
-                modelStatus?.model_loaded
-                  ? "Pronto para inferência"
-                  : "Fallback heurístico"
+                modelStatus?.model_loaded ? "Pronto para inferência" : "Fallback heurístico"
               }
             />
             <StatCard
@@ -368,7 +429,9 @@ export default function DashboardHome() {
             <StatCard
               title="Dataset"
               value={modelStatus?.rows ?? 0}
-              subtitle={`Treino: ${modelStatus?.train_rows ?? 0} • Teste: ${modelStatus?.test_rows ?? 0}`}
+              subtitle={`Treino: ${modelStatus?.train_rows ?? 0} • Teste: ${
+                modelStatus?.test_rows ?? 0
+              }`}
             />
             <StatCard
               title="Accuracy ML"
@@ -397,9 +460,7 @@ export default function DashboardHome() {
                   ? "Modelo aceitável"
                   : "Modelo fraco"}
               </strong>
-              <small>
-                Baseado na accuracy atual e consistência esperada para inferência.
-              </small>
+              <small>Baseado na accuracy atual e consistência esperada para inferência.</small>
             </div>
 
             <div className="model-detail-card">
@@ -451,10 +512,21 @@ export default function DashboardHome() {
         </section>
 
         <section className="panel">
-          <div className="panel__header">
+          <div className="panel__header panel__header--stack-on-mobile">
             <div>
               <h2>Últimas previsões</h2>
               <p>Entradas mais recentes registradas no sistema.</p>
+            </div>
+
+            <div className="panel__header-actions">
+              <span className="mini-kpi">
+                <strong>{marketBreakdown.oneXTwo}</strong>
+                <small>1X2</small>
+              </span>
+              <span className="mini-kpi">
+                <strong>{marketBreakdown.doubleChance}</strong>
+                <small>Dupla hipótese</small>
+              </span>
             </div>
           </div>
 
@@ -464,7 +536,11 @@ export default function DashboardHome() {
                 <tr>
                   <th>Liga</th>
                   <th>Jogo</th>
+                  <th>Mercado</th>
                   <th>Pick</th>
+                  <th>Prob.</th>
+                  <th>Odd</th>
+                  <th>Edge</th>
                   <th>Confiança</th>
                   <th>Modelo</th>
                   <th>Status</th>
@@ -476,79 +552,124 @@ export default function DashboardHome() {
               <tbody>
                 {predictions.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="table-empty">
+                    <td colSpan="12" className="table-empty">
                       Nenhuma previsão encontrada no banco.
                     </td>
                   </tr>
                 ) : (
-                  predictions.map((item) => (
-                    <tr key={item.id}>
-                      <td>
-                        <div className="league-cell">
-                          <strong>{item.league_name || "-"}</strong>
-                        </div>
-                      </td>
+                  predictions.map((item) => {
+                    const marketType = normalizeMarketType(item.market_type);
+                    const bestProbability =
+                      item.best_probability ??
+                      item.double_chance_probability ??
+                      item.main_market_probability ??
+                      null;
 
-                      <td>
-                        <div className="match-cell">
-                          <strong>
-                            {item.home_team} x {item.away_team}
+                    const edge =
+                      item.edge ??
+                      item.value_bet_edge ??
+                      item.odds_snapshot?.edge ??
+                      null;
+
+                    const currentOdd =
+                      item.latest_market_odds ??
+                      item.opening_market_odds ??
+                      null;
+
+                    return (
+                      <tr key={item.id || item.fixture_id}>
+                        <td>
+                          <div className="league-cell">
+                            <strong>{item.league_name || "-"}</strong>
+                          </div>
+                        </td>
+
+                        <td>
+                          <div className="match-cell">
+                            <strong>
+                              {item.home_team} x {item.away_team}
+                            </strong>
+
+                            {(item.home_score !== null && item.home_score !== undefined) ||
+                            (item.away_score !== null && item.away_score !== undefined) ? (
+                              <small className="muted-text">
+                                Placar: {item.home_score ?? "-"} x {item.away_score ?? "-"}
+                              </small>
+                            ) : (
+                              <small className="muted-text">
+                                {item.match_date || "-"} • {item.match_time || "-"}
+                              </small>
+                            )}
+                          </div>
+                        </td>
+
+                        <td>
+                          <span className={`market-badge market-badge--${marketType}`}>
+                            {formatMarketType(marketType)}
+                          </span>
+                        </td>
+
+                        <td>
+                          <div className="pick-stack">
+                            <span className="pick-badge">{formatPick(item.pick || "-")}</span>
+                            <small className="muted-text">{item.pick || "-"}</small>
+                          </div>
+                        </td>
+
+                        <td>
+                          <strong className="table-strong">
+                            {formatPercent(bestProbability)}
                           </strong>
+                        </td>
 
-                          {(item.home_score !== null && item.home_score !== undefined) ||
-                          (item.away_score !== null && item.away_score !== undefined) ? (
+                        <td>
+                          <strong className="table-strong">{formatOdd(currentOdd)}</strong>
+                        </td>
+
+                        <td>
+                          <span className={getValueTextClass(edge, true)}>
+                            {formatPercent(edge)}
+                          </span>
+                        </td>
+
+                        <td>
+                          <span className={`pill pill--${normalizeConfidence(item.confidence)}`}>
+                            {item.confidence || "-"}
+                          </span>
+                        </td>
+
+                        <td>{item.model_source || "-"}</td>
+
+                        <td>
+                          <span className={`pill pill--status-${normalizeStatus(item.status)}`}>
+                            {formatStatus(item.status)}
+                          </span>
+                        </td>
+
+                        <td>
+                          <div className="status-tech-cell">
+                            {item.is_live ? (
+                              <span className="pill pill--status-live">Ao vivo</span>
+                            ) : (
+                              <span className="pill pill--status-neutral">
+                                {item.last_status_text || "Sem status"}
+                              </span>
+                            )}
+
                             <small className="muted-text">
-                              Placar: {item.home_score ?? "-"} x {item.away_score ?? "-"}
+                              Fonte: {item.result_source || "-"}
                             </small>
-                          ) : (
-                            <small className="muted-text">
-                              {item.match_date || "-"} • {item.match_time || "-"}
-                            </small>
-                          )}
-                        </div>
-                      </td>
+                          </div>
+                        </td>
 
-                      <td>
-                        <span className="pick-badge">{item.pick || "-"}</span>
-                      </td>
-
-                      <td>
-                        <span className={`pill pill--${normalizeConfidence(item.confidence)}`}>
-                          {item.confidence || "-"}
-                        </span>
-                      </td>
-
-                      <td>{item.model_source || "-"}</td>
-
-                      <td>
-                        <span className={`pill pill--status-${normalizeStatus(item.status)}`}>
-                          {formatStatus(item.status)}
-                        </span>
-                      </td>
-
-                      <td>
-                        <div className="status-tech-cell">
-                          {item.is_live ? (
-                            <span className="pill pill--status-live">Ao vivo</span>
-                          ) : (
-                            <span className="pill pill--status-neutral">
-                              {item.last_status_text || "Sem status"}
-                            </span>
-                          )}
-
+                        <td>
                           <small className="muted-text">
-                            Fonte: {item.result_source || "-"}
+                            {formatDateTime(item.last_checked_at || item.checked_at)}
                           </small>
-                        </div>
-                      </td>
-
-                      <td>
-                        <small className="muted-text">
-                          {formatDateTime(item.last_checked_at || item.checked_at)}
-                        </small>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -624,6 +745,29 @@ function normalizeStatus(value) {
   return "pending";
 }
 
+function normalizeMarketType(value) {
+  const text = String(value || "").toLowerCase().trim();
+  if (text === "double_chance") return "double_chance";
+  return "1x2";
+}
+
+function formatMarketType(value) {
+  return normalizeMarketType(value) === "double_chance" ? "Dupla hipótese" : "1X2";
+}
+
+function formatPick(value) {
+  const pick = String(value || "").toUpperCase().trim();
+
+  if (pick === "1") return "Casa";
+  if (pick === "X") return "Empate";
+  if (pick === "2") return "Fora";
+  if (pick === "1X") return "Casa ou Empate";
+  if (pick === "X2") return "Empate ou Fora";
+  if (pick === "12") return "Casa ou Fora";
+
+  return pick || "-";
+}
+
 function formatStatus(value) {
   const text = String(value || "").toLowerCase();
   if (text === "hit") return "Hit";
@@ -668,4 +812,10 @@ function formatDecimal(value) {
 function formatClasses(classes) {
   if (!Array.isArray(classes) || classes.length === 0) return "Sem classes";
   return `Classes: ${classes.join(" • ")}`;
+}
+
+function formatOdd(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return "-";
+  return number.toFixed(2);
 }
