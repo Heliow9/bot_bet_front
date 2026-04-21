@@ -37,12 +37,14 @@ export default function SettingsPage() {
   const [oddsKeysText, setOddsKeysText] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [training, setTraining] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   async function loadSettings() {
     try {
       setError("");
+
       const response = await api.get("/settings/runtime");
       const data = {
         ...INITIAL_FORM,
@@ -79,6 +81,7 @@ export default function SettingsPage() {
 
   function updateField(name, value) {
     setSuccess("");
+    setError("");
     setForm((prev) => ({
       ...prev,
       [name]: value,
@@ -128,6 +131,45 @@ export default function SettingsPage() {
       setError("Não foi possível salvar as configurações.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleRunTraining() {
+    setTraining(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await api.post("/settings/runtime/train");
+      const data = response?.data || {};
+
+      if (data.success) {
+        const added = data?.added ?? 0;
+        setSuccess(
+          `Treino manual executado com sucesso. Novas linhas no dataset: ${added}.`
+        );
+      } else if (data.skipped) {
+        setError(data.message || "Treino ignorado porque já existe um processo em andamento.");
+      } else {
+        setError(data.message || "Não foi possível executar o treino manual.");
+      }
+    } catch (err) {
+      const status = err?.response?.status;
+      const message =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        err?.response?.data?.error;
+
+      if (status === 401 || status === 403) {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("user");
+        navigate("/login");
+        return;
+      }
+
+      setError(message || "Não foi possível executar o treino manual.");
+    } finally {
+      setTraining(false);
     }
   }
 
@@ -194,6 +236,7 @@ export default function SettingsPage() {
                     value={oddsKeysText}
                     onChange={(e) => {
                       setSuccess("");
+                      setError("");
                       setOddsKeysText(e.target.value);
                     }}
                     placeholder={`cole uma key por linha\nkey_1\nkey_2\nkey_3`}
@@ -337,6 +380,38 @@ export default function SettingsPage() {
             <section className="panel panel--spaced">
               <div className="panel__header">
                 <div>
+                  <h2>Treino do modelo</h2>
+                  <p>
+                    O treino automático continua rodando às 00:00, mas você pode
+                    disparar manualmente quando quiser.
+                  </p>
+                </div>
+              </div>
+
+              <div className="settings-grid">
+                <div className="settings-summary-card">
+                  <div className="settings-summary-card__label">Treino manual</div>
+                  <div className="settings-summary-card__value">
+                    {training ? "Executando..." : "Disponível"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="settings-actions" style={{ marginTop: "1rem", justifyContent: "flex-start" }}>
+                <button
+                  type="button"
+                  className="button button--secondary settings-save-button"
+                  onClick={handleRunTraining}
+                  disabled={training || saving}
+                >
+                  {training ? "Executando treino..." : "Executar treino agora"}
+                </button>
+              </div>
+            </section>
+
+            <section className="panel panel--spaced">
+              <div className="panel__header">
+                <div>
                   <h2>Resumo rápido</h2>
                   <p>Revise os parâmetros atuais antes de salvar.</p>
                 </div>
@@ -405,7 +480,7 @@ export default function SettingsPage() {
               <button
                 type="submit"
                 className="button button--primary settings-save-button"
-                disabled={saving}
+                disabled={saving || training}
               >
                 {saving ? "Salvando..." : "Salvar configurações"}
               </button>
