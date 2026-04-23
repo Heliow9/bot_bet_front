@@ -18,13 +18,24 @@ export default function ModelPage() {
     try {
       setError("");
 
-      const [performanceRes, modelStatusRes] = await Promise.all([
+      const [performanceRes, modelStatusRes] = await Promise.allSettled([
         api.get("/dashboard/model-performance"),
         api.get("/dashboard/model-status"),
       ]);
 
-      setPerformanceData(performanceRes.data);
-      setModelStatus(modelStatusRes.data);
+      if (performanceRes.status === "fulfilled") {
+        setPerformanceData(performanceRes.value.data);
+      }
+
+      if (modelStatusRes.status === "fulfilled") {
+        setModelStatus(modelStatusRes.value.data);
+      } else {
+        console.error("Falha ao carregar status do modelo:", modelStatusRes.reason);
+      }
+
+      if (performanceRes.status !== "fulfilled" && modelStatusRes.status !== "fulfilled") {
+        throw modelStatusRes.reason || performanceRes.reason;
+      }
     } catch (err) {
       console.error("Erro ao carregar página do modelo:", err);
 
@@ -36,7 +47,7 @@ export default function ModelPage() {
         return;
       }
 
-      setError("Não foi possível carregar as informações do modelo.");
+      setError("Não foi possível carregar as informações principais do modelo.");
     } finally {
       setLoading(false);
     }
@@ -64,6 +75,8 @@ export default function ModelPage() {
 
   const byConfidence = performanceData?.by_confidence || [];
   const byLeague = performanceData?.by_league || [];
+  const byMarket = performanceData?.by_market || [];
+  const historicalReliability = performanceData?.historical_reliability || modelStatus?.historical_reliability || null;
   const features = modelStatus?.features || [];
 
   return (
@@ -87,19 +100,23 @@ export default function ModelPage() {
           </div>
         ) : (
           <>
-            <section className="panel panel--spaced">
+            <section className="panel panel--spaced model-page-shell">
               <div className="panel__header">
                 <div>
                   <h2>Status do modelo</h2>
-                  <p>Saúde da última versão treinada e disponibilidade para inferência.</p>
+                  <p>Saúde da versão treinada e disponibilidade para inferência.</p>
                 </div>
               </div>
 
-              <section className="stats-grid">
+              <section className="stats-grid stats-grid--mobile-stack">
                 <StatCard
                   title="Modelo carregado"
                   value={modelStatus?.model_loaded ? "Sim" : "Não"}
-                  subtitle={modelStatus?.model_loaded ? "Pronto para predição" : "Fallback heurístico ativo"}
+                  subtitle={
+                    modelStatus?.model_loaded
+                      ? "Pronto para predição"
+                      : "Fallback heurístico ativo"
+                  }
                 />
                 <StatCard
                   title="Último treino"
@@ -117,6 +134,11 @@ export default function ModelPage() {
                   subtitle="Validação holdout"
                 />
                 <StatCard
+                  title="Peso real do ML"
+                  value={formatPercent(modelStatus?.effective_ml_weight)}
+                  subtitle={modelStatus?.effective_ml_weight > 0 ? "ML entra no blend" : "Fallback heurístico domina"}
+                />
+                <StatCard
                   title="Log loss"
                   value={formatDecimal(modelStatus?.log_loss)}
                   subtitle="Quanto menor, melhor"
@@ -129,7 +151,35 @@ export default function ModelPage() {
               </section>
             </section>
 
-            <section className="stats-grid">
+
+            <section className="panel panel--spaced">
+              <div className="panel__header">
+                <div>
+                  <h2>Leitura histórica</h2>
+                  <p>Resumo da confiabilidade real usada para calibrar a seleção dos mercados.</p>
+                </div>
+              </div>
+
+              <section className="stats-grid stats-grid--mobile-stack">
+                <StatCard
+                  title="Status histórico"
+                  value={historicalReliability?.label || "Base insuficiente"}
+                  subtitle={`Nível: ${historicalReliability?.level || "low"}`}
+                />
+                <StatCard
+                  title="Base resolvida"
+                  value={historicalReliability?.resolved_total ?? 0}
+                  subtitle="Usada para microajustes"
+                />
+                <StatCard
+                  title="Accuracy histórica"
+                  value={formatPercent(historicalReliability?.accuracy)}
+                  subtitle="Resultados reais consolidados"
+                />
+              </section>
+            </section>
+
+            <section className="stats-grid stats-grid--mobile-stack">
               <StatCard title="Jogos resolvidos" value={summary.resolved_total} />
               <StatCard title="Acertos" value={summary.hits} />
               <StatCard title="Erros" value={summary.misses} />
@@ -139,15 +189,9 @@ export default function ModelPage() {
               />
             </section>
 
-            <section className="stats-grid">
-              <StatCard
-                title="Lucro total"
-                value={formatMoney(summary.profit)}
-              />
-              <StatCard
-                title="Stake total"
-                value={formatMoney(summary.stake)}
-              />
+            <section className="stats-grid stats-grid--mobile-stack">
+              <StatCard title="Lucro total" value={formatMoney(summary.profit)} />
+              <StatCard title="Stake total" value={formatMoney(summary.stake)} />
               <StatCard
                 title="ROI geral"
                 value={`${(Number(summary.roi || 0) * 100).toFixed(2)}%`}
@@ -164,13 +208,12 @@ export default function ModelPage() {
                 <div>
                   <h2>Performance por confiança</h2>
                   <p>
-                    Veja como o modelo performa em alta, média e baixa confiança,
-                    incluindo acurácia, lucro e ROI.
+                    Compare alta, média e baixa confiança em acurácia, lucro e ROI.
                   </p>
                 </div>
               </div>
 
-              <div className="confidence-grid">
+              <div className="confidence-grid confidence-grid--mobile">
                 {byConfidence.length === 0 ? (
                   <div className="table-empty">
                     Ainda não há dados suficientes por confiança.
@@ -228,6 +271,49 @@ export default function ModelPage() {
               </div>
             </section>
 
+
+            <section className="panel panel--spaced">
+              <div className="panel__header">
+                <div>
+                  <h2>Performance por mercado</h2>
+                  <p>Compara 1x2 e dupla hipótese em volume, acurácia e ROI.</p>
+                </div>
+              </div>
+
+              <div className="table-wrapper">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Mercado</th>
+                      <th>Total</th>
+                      <th>Hits</th>
+                      <th>Misses</th>
+                      <th>Acurácia</th>
+                      <th>ROI</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {byMarket.length === 0 ? (
+                      <tr>
+                        <td colSpan="6">Ainda não há base resolvida por mercado.</td>
+                      </tr>
+                    ) : (
+                      byMarket.map((item) => (
+                        <tr key={item.market_type}>
+                          <td>{item.market_type === "double_chance" ? "Dupla hipótese" : "1x2"}</td>
+                          <td>{item.total}</td>
+                          <td>{item.hits}</td>
+                          <td>{item.misses}</td>
+                          <td>{formatPercent(item.accuracy)}</td>
+                          <td>{formatPercent(item.roi)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
             <section className="panel panel--spaced">
               <div className="panel__header">
                 <div>
@@ -236,7 +322,7 @@ export default function ModelPage() {
                 </div>
               </div>
 
-              <section className="stats-grid">
+              <section className="stats-grid stats-grid--mobile-stack">
                 <StatCard
                   title="Classes"
                   value={Array.isArray(modelStatus?.classes) ? modelStatus.classes.length : 0}
@@ -261,9 +347,7 @@ export default function ModelPage() {
               <div className="panel__header">
                 <div>
                   <h2>Performance por liga</h2>
-                  <p>
-                    Compare acurácia, lucro e ROI por campeonato.
-                  </p>
+                  <p>Compare acurácia, lucro e ROI por campeonato.</p>
                 </div>
               </div>
 
@@ -316,22 +400,16 @@ export default function ModelPage() {
               <div className="panel__header">
                 <div>
                   <h2>Features do modelo</h2>
-                  <p>Colunas efetivamente usadas na última versão treinada.</p>
+                  <p>Colunas usadas na última versão treinada.</p>
                 </div>
               </div>
 
               {features.length === 0 ? (
                 <div className="table-empty">Nenhuma feature registrada no modelo.</div>
               ) : (
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: "0.6rem",
-                  }}
-                >
+                <div className="features-cloud">
                   {features.map((feature) => (
-                    <span key={feature} className="pill pill--status-neutral">
+                    <span key={feature} className="pill pill--status-neutral feature-chip">
                       {feature}
                     </span>
                   ))}
@@ -388,6 +466,7 @@ function formatDateTime(value) {
     if (Number.isNaN(date.getTime())) return "-";
 
     return date.toLocaleString("pt-BR", {
+      timeZone: "America/Recife",
       dateStyle: "short",
       timeStyle: "short",
     });

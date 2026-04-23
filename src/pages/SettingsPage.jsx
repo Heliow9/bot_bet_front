@@ -13,22 +13,46 @@ const INITIAL_FORM = {
   live_signal_min_shots_diff: 4,
   live_signal_min_on_target_diff: 2,
   live_signal_min_possession_diff: 8,
+  telegram_send_to_main_chat: true,
+  telegram_send_to_channel: false,
+  odds_api_keys: [],
 };
+
+function parseOddsKeysInput(value) {
+  return String(value || "")
+    .split("\n")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function formatOddsKeysInput(keys) {
+  if (!Array.isArray(keys)) return "";
+  return keys.join("\n");
+}
 
 export default function SettingsPage() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState(INITIAL_FORM);
+  const [oddsKeysText, setOddsKeysText] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [training, setTraining] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   async function loadSettings() {
     try {
       setError("");
+
       const response = await api.get("/settings/runtime");
-      setForm(response.data);
+      const data = {
+        ...INITIAL_FORM,
+        ...(response.data || {}),
+      };
+
+      setForm(data);
+      setOddsKeysText(formatOddsKeysInput(data.odds_api_keys));
     } catch (err) {
       const status = err?.response?.status;
 
@@ -57,6 +81,7 @@ export default function SettingsPage() {
 
   function updateField(name, value) {
     setSuccess("");
+    setError("");
     setForm((prev) => ({
       ...prev,
       [name]: value,
@@ -78,10 +103,20 @@ export default function SettingsPage() {
         live_signal_min_shots_diff: Number(form.live_signal_min_shots_diff),
         live_signal_min_on_target_diff: Number(form.live_signal_min_on_target_diff),
         live_signal_min_possession_diff: Number(form.live_signal_min_possession_diff),
+        telegram_send_to_main_chat: Boolean(form.telegram_send_to_main_chat),
+        telegram_send_to_channel: Boolean(form.telegram_send_to_channel),
+        odds_api_keys: parseOddsKeysInput(oddsKeysText),
       };
 
       const response = await api.put("/settings/runtime", payload);
-      setForm(response.data);
+
+      const data = {
+        ...INITIAL_FORM,
+        ...(response.data || {}),
+      };
+
+      setForm(data);
+      setOddsKeysText(formatOddsKeysInput(data.odds_api_keys));
       setSuccess("Configurações salvas com sucesso.");
     } catch (err) {
       const status = err?.response?.status;
@@ -96,6 +131,45 @@ export default function SettingsPage() {
       setError("Não foi possível salvar as configurações.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleRunTraining() {
+    setTraining(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await api.post("/settings/runtime/train");
+      const data = response?.data || {};
+
+      if (data.success) {
+        const added = data?.added ?? 0;
+        setSuccess(
+          `Treino manual executado com sucesso. Novas linhas no dataset: ${added}.`
+        );
+      } else if (data.skipped) {
+        setError(data.message || "Treino ignorado porque já existe um processo em andamento.");
+      } else {
+        setError(data.message || "Não foi possível executar o treino manual.");
+      }
+    } catch (err) {
+      const status = err?.response?.status;
+      const message =
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        err?.response?.data?.error;
+
+      if (status === 401 || status === 403) {
+        localStorage.removeItem("access_token");
+        localStorage.removeItem("user");
+        navigate("/login");
+        return;
+      }
+
+      setError(message || "Não foi possível executar o treino manual.");
+    } finally {
+      setTraining(false);
     }
   }
 
@@ -139,6 +213,37 @@ export default function SettingsPage() {
                     onChange={(e) => updateField("value_bet_edge", e.target.value)}
                   />
                   <small>Exemplo: 0.05 = 5%</small>
+                </div>
+              </div>
+            </section>
+
+            <section className="panel panel--spaced">
+              <div className="panel__header">
+                <div>
+                  <h2>Odds API</h2>
+                  <p>
+                    Cadastre múltiplas API keys. O backend tentará a próxima
+                    automaticamente em caso de 401, 403 ou 429.
+                  </p>
+                </div>
+              </div>
+
+              <div className="settings-grid">
+                <div className="settings-field settings-field--full">
+                  <label>API keys de odds</label>
+                  <textarea
+                    rows={8}
+                    value={oddsKeysText}
+                    onChange={(e) => {
+                      setSuccess("");
+                      setError("");
+                      setOddsKeysText(e.target.value);
+                    }}
+                    placeholder={`cole uma key por linha\nkey_1\nkey_2\nkey_3`}
+                  />
+                  <small>
+                    Uma key por linha. Duplicadas e linhas vazias serão ignoradas.
+                  </small>
                 </div>
               </div>
             </section>
@@ -234,6 +339,79 @@ export default function SettingsPage() {
             <section className="panel panel--spaced">
               <div className="panel__header">
                 <div>
+                  <h2>Telegram</h2>
+                  <p>
+                    Controle para onde as mensagens automáticas serão enviadas.
+                  </p>
+                </div>
+              </div>
+
+              <div className="settings-grid">
+                <div className="settings-field">
+                  <label>Enviar para chat principal</label>
+                  <select
+                    value={String(form.telegram_send_to_main_chat)}
+                    onChange={(e) =>
+                      updateField("telegram_send_to_main_chat", e.target.value === "true")
+                    }
+                  >
+                    <option value="true">Ativado</option>
+                    <option value="false">Desativado</option>
+                  </select>
+                  <small>Usa o TELEGRAM_CHAT_ID configurado no backend.</small>
+                </div>
+
+                <div className="settings-field">
+                  <label>Enviar para canal</label>
+                  <select
+                    value={String(form.telegram_send_to_channel)}
+                    onChange={(e) =>
+                      updateField("telegram_send_to_channel", e.target.value === "true")
+                    }
+                  >
+                    <option value="true">Ativado</option>
+                    <option value="false">Desativado</option>
+                  </select>
+                  <small>Usa o TELEGRAM_CHANNEL_CHAT_ID configurado no backend.</small>
+                </div>
+              </div>
+            </section>
+
+            <section className="panel panel--spaced">
+              <div className="panel__header">
+                <div>
+                  <h2>Treino do modelo</h2>
+                  <p>
+                    O treino automático continua rodando às 00:00, mas você pode
+                    disparar manualmente quando quiser.
+                  </p>
+                </div>
+              </div>
+
+              <div className="settings-grid">
+                <div className="settings-summary-card">
+                  <div className="settings-summary-card__label">Treino manual</div>
+                  <div className="settings-summary-card__value">
+                    {training ? "Executando..." : "Disponível"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="settings-actions" style={{ marginTop: "1rem", justifyContent: "flex-start" }}>
+                <button
+                  type="button"
+                  className="button button--secondary settings-save-button"
+                  onClick={handleRunTraining}
+                  disabled={training || saving}
+                >
+                  {training ? "Executando treino..." : "Executar treino agora"}
+                </button>
+              </div>
+            </section>
+
+            <section className="panel panel--spaced">
+              <div className="panel__header">
+                <div>
                   <h2>Resumo rápido</h2>
                   <p>Revise os parâmetros atuais antes de salvar.</p>
                 </div>
@@ -260,6 +438,27 @@ export default function SettingsPage() {
                     {form.live_monitor_interval_seconds}s
                   </div>
                 </div>
+
+                <div className="settings-summary-card">
+                  <div className="settings-summary-card__label">Chat principal</div>
+                  <div className="settings-summary-card__value">
+                    {form.telegram_send_to_main_chat ? "Ativado" : "Desativado"}
+                  </div>
+                </div>
+
+                <div className="settings-summary-card">
+                  <div className="settings-summary-card__label">Canal</div>
+                  <div className="settings-summary-card__value">
+                    {form.telegram_send_to_channel ? "Ativado" : "Desativado"}
+                  </div>
+                </div>
+
+                <div className="settings-summary-card">
+                  <div className="settings-summary-card__label">Keys de odds</div>
+                  <div className="settings-summary-card__value">
+                    {parseOddsKeysInput(oddsKeysText).length}
+                  </div>
+                </div>
               </div>
             </section>
 
@@ -281,7 +480,7 @@ export default function SettingsPage() {
               <button
                 type="submit"
                 className="button button--primary settings-save-button"
-                disabled={saving}
+                disabled={saving || training}
               >
                 {saving ? "Salvando..." : "Salvar configurações"}
               </button>
