@@ -55,10 +55,15 @@ export default function PredictionsPage() {
     loadData();
 
     const interval = setInterval(() => {
+<<<<<<< HEAD
       if (document.visibilityState === "visible") {
         loadData(true);
       }
     }, DASHBOARD_POLL_INTERVAL_MS);
+=======
+      loadData(true);
+    }, 30000);
+>>>>>>> 7183c46c4effe5b92bd6aee44ced5c5ce6ff2257
 
     return () => clearInterval(interval);
   }, []);

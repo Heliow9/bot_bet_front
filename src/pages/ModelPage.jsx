@@ -151,6 +151,7 @@ export default function ModelPage() {
               </section>
             </section>
 
+<<<<<<< HEAD
 
             <section className="panel panel--spaced">
               <div className="panel__header">
@@ -179,6 +180,8 @@ export default function ModelPage() {
               </section>
             </section>
 
+=======
+>>>>>>> 7183c46c4effe5b92bd6aee44ced5c5ce6ff2257
             <section className="stats-grid stats-grid--mobile-stack">
               <StatCard title="Jogos resolvidos" value={summary.resolved_total} />
               <StatCard title="Acertos" value={summary.hits} />

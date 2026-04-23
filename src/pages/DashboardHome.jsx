@@ -16,25 +16,15 @@ export default function DashboardHome() {
 
   async function loadData({ silent = false } = {}) {
     try {
-      if (!silent) setLoading(true);
-
-      const [summaryRes, predictionsRes, modelStatusRes] = await Promise.allSettled([
+      const [summaryRes, predictionsRes, modelStatusRes] = await Promise.all([
         api.get("/dashboard/summary"),
         api.get("/dashboard/predictions?limit=10"),
         api.get("/dashboard/model-status"),
       ]);
 
-      if (summaryRes.status === "fulfilled") {
-        setSummary(summaryRes.value.data || null);
-      }
-      if (predictionsRes.status === "fulfilled") {
-        setPredictions(predictionsRes.value.data?.items || []);
-      }
-      if (modelStatusRes.status === "fulfilled") {
-        setModelStatus(modelStatusRes.value.data || null);
-      } else {
-        console.error("Falha ao carregar model-status no dashboard:", modelStatusRes.reason);
-      }
+      setSummary(summaryRes.data);
+      setPredictions(predictionsRes.data.items || []);
+      setModelStatus(modelStatusRes.data || null);
     } catch (error) {
       console.error("Erro ao carregar dashboard:", error);
     } finally {
@@ -44,14 +34,6 @@ export default function DashboardHome() {
 
   useEffect(() => {
     loadData();
-
-    const interval = setInterval(() => {
-      if (document.visibilityState === "visible") {
-        loadData({ silent: true });
-      }
-    }, DASHBOARD_POLL_INTERVAL_MS);
-
-    return () => clearInterval(interval);
   }, []);
 
   function handleLogout() {
