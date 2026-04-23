@@ -37,6 +37,14 @@ export default function MarketPage() {
 
   useEffect(() => {
     loadData();
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        loadData({ silent: true });
+      }
+    }, DASHBOARD_POLL_INTERVAL_MS);
+
+    return () => clearInterval(interval);
   }, []);
 
   function handleLogout() {
@@ -107,6 +115,37 @@ export default function MarketPage() {
               </div>
             )}
           </div>
+
+          {!loading && !error && items.length > 0 ? (
+            <div className="context-strip" style={{ marginBottom: "1rem" }}>
+              <div className="context-chip">
+                <span className="context-chip__label">Value bets</span>
+                <strong>{summary.valueBets}</strong>
+              </div>
+
+              <div className="context-chip">
+                <span className="context-chip__label">Dupla hipótese</span>
+                <strong>{summary.doubleChance}</strong>
+              </div>
+
+              <div className="context-chip">
+                <span className="context-chip__label">Mercado 1X2</span>
+                <strong>{summary.total - summary.doubleChance}</strong>
+              </div>
+
+              <div className="context-chip">
+                <span className="context-chip__label">Melhor edge</span>
+                <strong className={edgeClass(getBestEdge(items))}>
+                  {formatEdge(getBestEdge(items))}
+                </strong>
+              </div>
+
+              <div className="context-chip">
+                <span className="context-chip__label">Atualização</span>
+                <strong>{Math.round(DASHBOARD_POLL_INTERVAL_MS / 1000)}s</strong>
+              </div>
+            </div>
+          ) : null}
 
           {loading ? (
             <div className="table-empty">Carregando mercado...</div>
