@@ -15,7 +15,7 @@ export default function PredictionsPage() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [confidenceFilter, setConfidenceFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("confidence");
+  const [sortBy, setSortBy] = useState("kickoff");
   const [lastRefreshAt, setLastRefreshAt] = useState(null);
 
   async function loadData(isRefresh = false) {
@@ -92,6 +92,10 @@ export default function PredictionsPage() {
     });
 
     return [...result].sort((a, b) => {
+      if (sortBy === "kickoff") {
+        return getKickoffTimestamp(a) - getKickoffTimestamp(b);
+      }
+
       if (sortBy === "confidence") {
         return getConfidenceScore(b.confidence) - getConfidenceScore(a.confidence);
       }
@@ -260,6 +264,7 @@ export default function PredictionsPage() {
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
                 >
+                  <option value="kickoff">Horário do jogo</option>
                   <option value="confidence">Confiança</option>
                   <option value="probability">Maior probabilidade</option>
                   <option value="live">Ao vivo primeiro</option>
@@ -408,6 +413,9 @@ export default function PredictionsPage() {
                           {item.home_team} <span>x</span> {item.away_team}
                         </h3>
                         <p>
+                          Início: <strong>{formatMatchKickoff(item)}</strong>
+                        </p>
+                        <p>
                           Pick principal: <strong>{item.pick || "-"}</strong>
                         </p>
                       </div>
@@ -443,8 +451,13 @@ export default function PredictionsPage() {
 
                       <div className="info-grid">
                         <div className="info-cell">
-                          <span>Status</span>
-                          <strong>Pending</strong>
+                          <span>Mercado</span>
+                          <strong>{formatMarketType(item.market_type)}</strong>
+                        </div>
+
+                        <div className="info-cell">
+                          <span>Odd atual</span>
+                          <strong>{formatOdd(item.latest_market_odds || item.opening_market_odds)}</strong>
                         </div>
 
                         <div className="info-cell">
@@ -468,8 +481,10 @@ export default function PredictionsPage() {
                 <table className="data-table predictions-table">
                   <thead>
                     <tr>
+                      <th>Horário</th>
                       <th>Liga</th>
                       <th>Jogo</th>
+                      <th>Mercado</th>
                       <th>Pick</th>
                       <th>Maior cenário</th>
                       <th>Probabilidades</th>
@@ -486,12 +501,25 @@ export default function PredictionsPage() {
 
                       return (
                         <tr key={item.id}>
+                          <td>
+                            <strong>{formatMatchTime(item)}</strong>
+                            <br />
+                            <small className="muted-text">{formatMatchDate(item)}</small>
+                          </td>
+
                           <td>{item.league_name}</td>
 
                           <td>
                             <strong>
                               {item.home_team} x {item.away_team}
                             </strong>
+                          </td>
+
+                          <td>
+                            <div className="desktop-top-outcome">
+                              <strong>{formatMarketType(item.market_type)}</strong>
+                              <span>{formatOdd(item.latest_market_odds || item.opening_market_odds)}</span>
+                            </div>
                           </td>
 
                           <td>
@@ -602,6 +630,58 @@ function getOutcomeLabel(outcome) {
   if (outcome === "home") return "Casa";
   if (outcome === "draw") return "Empate";
   return "Fora";
+}
+
+
+function buildKickoffDate(item) {
+  const date = String(item?.match_date || item?.date || "").trim();
+  const time = String(item?.match_time || item?.time || "").trim();
+
+  if (!date) return null;
+
+  const normalizedTime = time ? (time.length === 5 ? `${time}:00` : time) : "00:00:00";
+  const kickoff = new Date(`${date}T${normalizedTime}-03:00`);
+  return Number.isNaN(kickoff.getTime()) ? null : kickoff;
+}
+
+function getKickoffTimestamp(item) {
+  const kickoff = buildKickoffDate(item);
+  return kickoff ? kickoff.getTime() : Number.MAX_SAFE_INTEGER;
+}
+
+function formatMatchKickoff(item) {
+  const date = formatMatchDate(item);
+  const time = formatMatchTime(item);
+  if (date === "-" && time === "-") return "-";
+  return `${date} às ${time}`;
+}
+
+function formatMatchDate(item) {
+  const kickoff = buildKickoffDate(item);
+  if (!kickoff) return "-";
+  return kickoff.toLocaleDateString("pt-BR", { timeZone: "America/Recife" });
+}
+
+function formatMatchTime(item) {
+  const kickoff = buildKickoffDate(item);
+  if (!kickoff) return "-";
+  return kickoff.toLocaleTimeString("pt-BR", {
+    timeZone: "America/Recife",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatMarketType(value) {
+  const normalized = String(value || "1x2").toLowerCase();
+  if (normalized === "double_chance") return "Dupla hipótese";
+  return "1X2";
+}
+
+function formatOdd(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return "-";
+  return number.toFixed(2);
 }
 
 function normalizeBackendDate(value) {
