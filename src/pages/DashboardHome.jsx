@@ -30,22 +30,35 @@ export default function DashboardHome() {
         api.get("/dashboard/model-status"),
       ]);
 
+      const nextPredictions = predictionsRes.status === "fulfilled"
+        ? predictionsRes.value.data?.items || []
+        : [];
+
       if (summaryRes.status === "fulfilled") {
         setSummary(summaryRes.value.data || null);
       }
       if (predictionsRes.status === "fulfilled") {
-        setPredictions(predictionsRes.value.data?.items || []);
+        setPredictions(nextPredictions);
       }
+
+      // O endpoint /dashboard/opportunities pode não existir em APIs antigas.
+      // Nesse caso, o Radar usa as previsões recentes como fallback e não derruba o painel.
       if (opportunitiesRes.status === "fulfilled") {
         setOpportunities(opportunitiesRes.value.data?.items || []);
+      } else {
+        console.warn("Endpoint de oportunidades indisponível; usando fallback por previsões:", opportunitiesRes.reason);
+        setOpportunities(nextPredictions);
       }
+
       if (modelStatusRes.status === "fulfilled") {
         setModelStatus(modelStatusRes.value.data || null);
       } else {
         console.error("Falha ao carregar model-status no dashboard:", modelStatusRes.reason);
       }
 
-      const rejected = [summaryRes, predictionsRes, opportunitiesRes, modelStatusRes].find(
+      // Só mostra falha geral se endpoints essenciais falharem.
+      // Oportunidades/model-status são opcionais para manter a dashboard online.
+      const rejected = [summaryRes, predictionsRes].find(
         (result) => result.status === "rejected"
       );
 
