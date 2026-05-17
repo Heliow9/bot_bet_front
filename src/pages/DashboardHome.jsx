@@ -11,6 +11,7 @@ export default function DashboardHome() {
 
   const [summary, setSummary] = useState(null);
   const [predictions, setPredictions] = useState([]);
+  const [opportunities, setOpportunities] = useState([]);
   const [modelStatus, setModelStatus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [connectionError, setConnectionError] = useState("");
@@ -22,9 +23,10 @@ export default function DashboardHome() {
     try {
       if (!silent) setLoading(true);
 
-      const [summaryRes, predictionsRes, modelStatusRes] = await Promise.allSettled([
+      const [summaryRes, predictionsRes, opportunitiesRes, modelStatusRes] = await Promise.allSettled([
         api.get("/dashboard/summary"),
         api.get("/dashboard/predictions?limit=10"),
+        api.get("/dashboard/opportunities?limit=10&hours=24"),
         api.get("/dashboard/model-status"),
       ]);
 
@@ -34,13 +36,16 @@ export default function DashboardHome() {
       if (predictionsRes.status === "fulfilled") {
         setPredictions(predictionsRes.value.data?.items || []);
       }
+      if (opportunitiesRes.status === "fulfilled") {
+        setOpportunities(opportunitiesRes.value.data?.items || []);
+      }
       if (modelStatusRes.status === "fulfilled") {
         setModelStatus(modelStatusRes.value.data || null);
       } else {
         console.error("Falha ao carregar model-status no dashboard:", modelStatusRes.reason);
       }
 
-      const rejected = [summaryRes, predictionsRes, modelStatusRes].find(
+      const rejected = [summaryRes, predictionsRes, opportunitiesRes, modelStatusRes].find(
         (result) => result.status === "rejected"
       );
 
@@ -352,14 +357,11 @@ export default function DashboardHome() {
 
 
   const analysisBoard = useMemo(() => {
-    const enriched = predictions.map((item) => {
-      const probability = getBestProbability(item);
-      const edge = getPredictionEdge(item);
-      const odd = getPredictionOdd(item);
-      const confidenceScore = getConfidenceScore(item.confidence) / 100;
-      const liveBoost = item.is_live ? 0.08 : 0;
-      const valueBoost = edge > 0 ? Math.min(edge, 0.25) : 0;
-      const score = clamp01(probability * 0.45 + confidenceScore * 0.25 + valueBoost * 0.22 + liveBoost);
+    const enriched = opportunities.map((item) => {
+      const probability = Number(item.opportunity_probability ?? getBestProbability(item));
+      const edge = Number(item.opportunity_edge ?? getPredictionEdge(item));
+      const odd = Number(item.opportunity_odd ?? getPredictionOdd(item));
+      const score = Number(item.opportunity_score ?? 0);
 
       return {
         ...item,
@@ -378,7 +380,7 @@ export default function DashboardHome() {
     const avgScore = enriched.length
       ? enriched.reduce((acc, item) => acc + item.analysisScore, 0) / enriched.length
       : 0;
-    const staleLive = enriched.filter(
+    const staleLive = predictions.filter(
       (item) => item.is_live && minutesSince(item.last_checked_at || item.checked_at) > 4
     ).length;
     const topOpportunities = [...enriched]
@@ -393,7 +395,7 @@ export default function DashboardHome() {
       staleLive,
       topOpportunities,
     };
-  }, [predictions]);
+  }, [opportunities, predictions]);
 
   const riskPanel = useMemo(() => {
     const roi = Number(summary?.roi ?? 0);
@@ -550,9 +552,9 @@ export default function DashboardHome() {
 
         <section className="analysis-command-grid">
           <article className="analysis-card analysis-card--primary">
-            <span className="analysis-card__label">Score médio das entradas recentes</span>
+            <span className="analysis-card__label">Score médio das oportunidades futuras</span>
             <strong>{formatPercent(analysisBoard.avgScore)}</strong>
-            <small>Combina probabilidade, confiança, edge e status live.</small>
+            <small>Calculado somente em jogos futuros com odds válidas.</small>
           </article>
 
           <article className="analysis-card">
@@ -564,7 +566,7 @@ export default function DashboardHome() {
           <article className="analysis-card">
             <span className="analysis-card__label">Value detectado</span>
             <strong>{analysisBoard.valueSignals}</strong>
-            <small>Entradas recentes com edge positivo.</small>
+            <small>Jogos futuros com edge positivo.</small>
           </article>
 
           <article className={`analysis-card ${analysisBoard.staleLive ? "analysis-card--warning" : ""}`}>
@@ -578,19 +580,20 @@ export default function DashboardHome() {
           <div className="panel__header">
             <div>
               <h2>Radar de oportunidades</h2>
-              <p>Ranking das previsões recentes pelo score operacional da dashboard.</p>
+              <p>Ranking future-only: apenas jogos pendentes, futuros e com odd/probabilidade válidas.</p>
             </div>
           </div>
 
           <div className="opportunity-list">
             {analysisBoard.topOpportunities.length === 0 ? (
-              <div className="table-empty">Nenhuma oportunidade recente para analisar.</div>
+              <div className="table-empty">Nenhuma oportunidade futura válida nas próximas 24h.</div>
             ) : (
               analysisBoard.topOpportunities.map((item) => (
                 <article className="opportunity-card" key={`opp-${item.id || item.fixture_id}`}>
                   <div>
                     <strong>{item.home_team} x {item.away_team}</strong>
                     <small>{item.league_name || "Liga não informada"} • {formatMarketType(item.market_type)} • {formatPick(item.pick)}</small>
+                    <small>⏰ {formatDateTime(item.kickoff_at)} • em {formatMinutesToKickoff(item.minutes_to_kickoff)}</small>
                   </div>
                   <div className="opportunity-card__metrics">
                     <span>Score <b>{formatPercent(item.analysisScore)}</b></span>
@@ -1107,6 +1110,16 @@ function minutesSince(value) {
   const timestamp = new Date(value).getTime();
   if (Number.isNaN(timestamp)) return Number.POSITIVE_INFINITY;
   return (Date.now() - timestamp) / 60000;
+}
+
+function formatMinutesToKickoff(value) {
+  const minutes = Number(value);
+  if (!Number.isFinite(minutes)) return "horário indisponível";
+  if (minutes < 0) return "já iniciado";
+  if (minutes < 60) return `${minutes}min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours}h${String(rest).padStart(2, "0")}` : `${hours}h`;
 }
 
 function MetricCard({ title, value, tone = "neutral" }) {
