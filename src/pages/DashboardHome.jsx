@@ -15,6 +15,8 @@ export default function DashboardHome() {
   const [loading, setLoading] = useState(true);
   const [connectionError, setConnectionError] = useState("");
   const [lastRefreshAt, setLastRefreshAt] = useState(null);
+  const [actionLoading, setActionLoading] = useState("");
+  const [actionResult, setActionResult] = useState(null);
 
   async function loadData({ silent = false } = {}) {
     try {
@@ -69,6 +71,195 @@ export default function DashboardHome() {
     localStorage.removeItem("user");
     navigate("/login");
   }
+
+  async function runDashboardAction(action) {
+    if (action.confirmMessage && !window.confirm(action.confirmMessage)) {
+      return;
+    }
+
+    if (action.type === "navigate") {
+      navigate(action.to);
+      return;
+    }
+
+    if (action.type === "external") {
+      window.open(action.href, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    if (action.type === "local" && action.key === "refresh") {
+      await loadData();
+      setActionResult({
+        title: action.title,
+        ok: true,
+        message: "Dashboard atualizado com sucesso.",
+        data: { updated_at: new Date().toISOString() },
+      });
+      return;
+    }
+
+    if (action.type === "local" && action.key === "logout") {
+      handleLogout();
+      return;
+    }
+
+    setActionLoading(action.key);
+    setActionResult(null);
+
+    try {
+      const response = await api.request({
+        url: action.url,
+        method: action.method || "GET",
+        data: action.body || undefined,
+      });
+
+      setActionResult({
+        title: action.title,
+        ok: true,
+        message: response.data?.message || "Ação executada com sucesso.",
+        data: response.data,
+      });
+
+      if (action.reloadAfter) {
+        await loadData({ silent: true });
+      }
+    } catch (error) {
+      console.error(`Erro ao executar ação ${action.key}:`, error);
+      setActionResult({
+        title: action.title,
+        ok: false,
+        message: getApiConnectionMessage(error),
+        data: error?.response?.data || null,
+      });
+    } finally {
+      setActionLoading("");
+    }
+  }
+
+  const actionGroups = useMemo(() => {
+    return [
+      {
+        title: "Operação manual",
+        description: "Dispare rotinas críticas sem esperar o scheduler.",
+        actions: [
+          {
+            key: "pre-game",
+            title: "Rodar pré-análise 30min",
+            description: "Procura jogos entrando na janela pré-jogo e envia análise.",
+            icon: "⏱️",
+            url: "/admin/run-pre-game-check",
+            method: "POST",
+            reloadAfter: true,
+          },
+          {
+            key: "results",
+            title: "Conferir resultados",
+            description: "Baixa placares e consolida hits/misses pendentes.",
+            icon: "🏁",
+            url: "/admin/run-results-check",
+            method: "POST",
+            reloadAfter: true,
+          },
+          {
+            key: "today-audit",
+            title: "Auditoria do dia",
+            description: "Reprocessa pendências e saúde operacional do dia.",
+            icon: "🧾",
+            url: "/admin/run-today-audit",
+            method: "POST",
+            reloadAfter: true,
+          },
+          {
+            key: "post-deploy",
+            title: "Sincronização pós-deploy",
+            description: "Executa rotinas de consistência depois de atualizar a API.",
+            icon: "🔄",
+            url: "/admin/run-post-deploy-sync",
+            method: "POST",
+            reloadAfter: true,
+            confirmMessage: "Executar sincronização pós-deploy agora?",
+          },
+        ],
+      },
+      {
+        title: "Modelo e diagnóstico",
+        description: "Cheque saúde técnica e force atualização quando precisar.",
+        actions: [
+          {
+            key: "train",
+            title: "Treinar modelo ML",
+            description: "Executa treino manual do modelo 1X2. Pode demorar.",
+            icon: "🤖",
+            url: "/settings/runtime/train",
+            method: "POST",
+            reloadAfter: true,
+            confirmMessage: "Iniciar treino manual do modelo agora?",
+          },
+          {
+            key: "runtime",
+            title: "Ler configuração runtime",
+            description: "Mostra parâmetros operacionais atuais da API.",
+            icon: "⚙️",
+            url: "/settings/runtime",
+            method: "GET",
+          },
+          {
+            key: "health",
+            title: "Testar saúde da API",
+            description: "Consulta /health e confirma se backend responde.",
+            icon: "🟢",
+            url: "/health",
+            method: "GET",
+          },
+          {
+            key: "refresh",
+            title: "Atualizar dashboard",
+            description: "Recarrega cards, radar e últimas previsões.",
+            icon: "♻️",
+            type: "local",
+          },
+        ],
+      },
+      {
+        title: "Navegação rápida",
+        description: "Atalhos para áreas e ferramentas úteis.",
+        actions: [
+          {
+            key: "go-predictions",
+            title: "Previsões",
+            description: "Abrir lista completa de picks.",
+            icon: "📊",
+            type: "navigate",
+            to: "/predictions",
+          },
+          {
+            key: "go-results",
+            title: "Resultados",
+            description: "Ver fechamento de entradas.",
+            icon: "✅",
+            type: "navigate",
+            to: "/results",
+          },
+          {
+            key: "go-settings",
+            title: "Configurações",
+            description: "Ajustar parâmetros runtime no painel.",
+            icon: "🛠️",
+            type: "navigate",
+            to: "/settings",
+          },
+          {
+            key: "docs",
+            title: "Swagger da API",
+            description: "Abrir documentação técnica do backend.",
+            icon: "📘",
+            type: "external",
+            href: `${API_BASE_URL}/docs`,
+          },
+        ],
+      },
+    ];
+  }, [navigate]);
 
   const hero = useMemo(() => {
     return {
@@ -246,6 +437,61 @@ export default function DashboardHome() {
             <p>{connectionError || `Conectado em ${API_BASE_URL}`}</p>
           </div>
           <small>Última atualização: {formatDateTime(lastRefreshAt)}</small>
+        </section>
+
+        <section className="actions-center panel panel--spaced">
+          <div className="panel__header panel__header--stack-on-mobile">
+            <div>
+              <h2>Central de ações</h2>
+              <p>Botões operacionais para executar rotinas da API direto pela dashboard.</p>
+            </div>
+            <span className="actions-center__api">API: {API_BASE_URL}</span>
+          </div>
+
+          <div className="actions-groups">
+            {actionGroups.map((group) => (
+              <article className="actions-group" key={group.title}>
+                <div className="actions-group__header">
+                  <strong>{group.title}</strong>
+                  <small>{group.description}</small>
+                </div>
+
+                <div className="actions-grid">
+                  {group.actions.map((action) => {
+                    const isRunning = actionLoading === action.key;
+                    return (
+                      <button
+                        className="action-control"
+                        key={action.key}
+                        onClick={() => runDashboardAction(action)}
+                        disabled={Boolean(actionLoading) && !isRunning}
+                        type="button"
+                      >
+                        <span className="action-control__icon">{isRunning ? "⏳" : action.icon}</span>
+                        <span className="action-control__content">
+                          <strong>{isRunning ? "Executando..." : action.title}</strong>
+                          <small>{action.description}</small>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </article>
+            ))}
+          </div>
+
+          {actionResult ? (
+            <div className={`action-result ${actionResult.ok ? "action-result--ok" : "action-result--bad"}`}>
+              <div className="action-result__header">
+                <strong>{actionResult.ok ? "Ação concluída" : "Ação com erro"}: {actionResult.title}</strong>
+                <button type="button" onClick={() => setActionResult(null)}>Fechar</button>
+              </div>
+              <p>{actionResult.message}</p>
+              {actionResult.data ? (
+                <pre>{formatJson(actionResult.data)}</pre>
+              ) : null}
+            </div>
+          ) : null}
         </section>
 
         <section className="hero-overview">
@@ -1003,6 +1249,14 @@ function formatDecimal(value) {
 function formatClasses(classes) {
   if (!Array.isArray(classes) || classes.length === 0) return "Sem classes";
   return `Classes: ${classes.join(" • ")}`;
+}
+
+function formatJson(value) {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 }
 
 function formatOdd(value) {
