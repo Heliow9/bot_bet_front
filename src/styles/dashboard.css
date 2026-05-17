@@ -2471,3 +2471,188 @@
     gap: 10px;
   }
 }
+/* =========================
+   API HEALTH / ANALYSIS COMMAND CENTER
+========================= */
+
+.api-health {
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 0.95rem 1rem;
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.82);
+  box-shadow: var(--shadow);
+}
+
+.api-health strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.api-health p,
+.api-health small {
+  margin: 0;
+  color: var(--muted);
+}
+
+.api-health--good {
+  border-color: rgba(34, 197, 94, 0.22);
+  background: linear-gradient(180deg, rgba(20, 83, 45, 0.16), rgba(15, 23, 42, 0.9));
+}
+
+.api-health--bad {
+  border-color: rgba(248, 113, 113, 0.38);
+  background: linear-gradient(180deg, rgba(127, 29, 29, 0.24), rgba(15, 23, 42, 0.94));
+}
+
+.analysis-command-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.analysis-card {
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.82);
+  box-shadow: var(--shadow);
+}
+
+.analysis-card--primary {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.24), rgba(124, 58, 237, 0.18));
+  border-color: rgba(96, 165, 250, 0.28);
+}
+
+.analysis-card--warning {
+  background: linear-gradient(135deg, rgba(180, 83, 9, 0.22), rgba(15, 23, 42, 0.88));
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+.analysis-card__label {
+  display: block;
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 0.84rem;
+  margin-bottom: 0.55rem;
+}
+
+.analysis-card strong {
+  display: block;
+  font-size: clamp(1.6rem, 4vw, 2.25rem);
+  line-height: 1;
+  margin-bottom: 0.55rem;
+}
+
+.analysis-card small {
+  color: var(--muted);
+}
+
+.opportunity-list {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.opportunity-card {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 0.95rem;
+  background: rgba(255, 255, 255, 0.035);
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 1fr);
+  gap: 1rem;
+  align-items: center;
+}
+
+.opportunity-card strong {
+  display: block;
+}
+
+.opportunity-card small {
+  display: block;
+  color: var(--muted);
+  margin-top: 0.25rem;
+}
+
+.opportunity-card__metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.opportunity-card__metrics span {
+  border-radius: 14px;
+  padding: 0.55rem;
+  background: rgba(15, 23, 42, 0.74);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.opportunity-card__metrics b {
+  display: block;
+  color: #fff;
+  margin-top: 0.18rem;
+}
+
+.risk-panel {
+  margin: 1rem 0;
+  border-radius: 24px;
+  padding: 1rem;
+  border: 1px solid rgba(250, 204, 21, 0.22);
+  background: linear-gradient(135deg, rgba(113, 63, 18, 0.18), rgba(15, 23, 42, 0.92));
+  display: grid;
+  grid-template-columns: minmax(220px, 0.7fr) 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.risk-panel__eyebrow {
+  display: block;
+  color: #fde68a;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.35rem;
+}
+
+.risk-panel ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  display: grid;
+  gap: 0.35rem;
+}
+
+@media (max-width: 1100px) {
+  .analysis-command-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .opportunity-card,
+  .risk-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .api-health,
+  .analysis-command-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .api-health {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .analysis-command-grid,
+  .opportunity-card__metrics {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import api, { DASHBOARD_POLL_INTERVAL_MS } from "../api";
+import api, { API_BASE_URL, DASHBOARD_POLL_INTERVAL_MS, getApiConnectionMessage } from "../api";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import StatCard from "../components/StatCard";
@@ -13,6 +13,8 @@ export default function DashboardHome() {
   const [predictions, setPredictions] = useState([]);
   const [modelStatus, setModelStatus] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [connectionError, setConnectionError] = useState("");
+  const [lastRefreshAt, setLastRefreshAt] = useState(null);
 
   async function loadData({ silent = false } = {}) {
     try {
@@ -35,8 +37,16 @@ export default function DashboardHome() {
       } else {
         console.error("Falha ao carregar model-status no dashboard:", modelStatusRes.reason);
       }
+
+      const rejected = [summaryRes, predictionsRes, modelStatusRes].find(
+        (result) => result.status === "rejected"
+      );
+
+      setConnectionError(rejected ? getApiConnectionMessage(rejected.reason) : "");
+      setLastRefreshAt(new Date());
     } catch (error) {
       console.error("Erro ao carregar dashboard:", error);
+      setConnectionError(getApiConnectionMessage(error));
     } finally {
       if (!silent) setLoading(false);
     }
@@ -149,6 +159,72 @@ export default function DashboardHome() {
     };
   }, [summary, modelStatus, predictions]);
 
+
+  const analysisBoard = useMemo(() => {
+    const enriched = predictions.map((item) => {
+      const probability = getBestProbability(item);
+      const edge = getPredictionEdge(item);
+      const odd = getPredictionOdd(item);
+      const confidenceScore = getConfidenceScore(item.confidence) / 100;
+      const liveBoost = item.is_live ? 0.08 : 0;
+      const valueBoost = edge > 0 ? Math.min(edge, 0.25) : 0;
+      const score = clamp01(probability * 0.45 + confidenceScore * 0.25 + valueBoost * 0.22 + liveBoost);
+
+      return {
+        ...item,
+        analysisScore: score,
+        analysisProbability: probability,
+        analysisEdge: edge,
+        analysisOdd: odd,
+      };
+    });
+
+    const strongSignals = enriched.filter((item) => item.analysisScore >= 0.72).length;
+    const valueSignals = enriched.filter((item) => Number(item.analysisEdge) > 0).length;
+    const avgEdge = enriched.length
+      ? enriched.reduce((acc, item) => acc + Number(item.analysisEdge || 0), 0) / enriched.length
+      : 0;
+    const avgScore = enriched.length
+      ? enriched.reduce((acc, item) => acc + item.analysisScore, 0) / enriched.length
+      : 0;
+    const staleLive = enriched.filter(
+      (item) => item.is_live && minutesSince(item.last_checked_at || item.checked_at) > 4
+    ).length;
+    const topOpportunities = [...enriched]
+      .sort((a, b) => b.analysisScore - a.analysisScore)
+      .slice(0, 5);
+
+    return {
+      strongSignals,
+      valueSignals,
+      avgEdge,
+      avgScore,
+      staleLive,
+      topOpportunities,
+    };
+  }, [predictions]);
+
+  const riskPanel = useMemo(() => {
+    const roi = Number(summary?.roi ?? 0);
+    const todayRoi = Number(summary?.today_roi ?? 0);
+    const accuracy = Number(summary?.accuracy ?? 0);
+    const pending = Number(summary?.pending_predictions ?? 0);
+    const staleLive = analysisBoard.staleLive;
+
+    const alerts = [];
+    if (roi < 0) alerts.push("ROI acumulado negativo: reduzir exposição até estabilizar.");
+    if (todayRoi < -0.05) alerts.push("Dia abaixo do esperado: evitar aumentar stake no live.");
+    if (accuracy > 0 && accuracy < 0.5) alerts.push("Acurácia abaixo de 50%: revisar filtros de entrada.");
+    if (pending > 30) alerts.push("Muitas pendências abertas: aguardar fechamento antes de escalar volume.");
+    if (staleLive > 0) alerts.push(`${staleLive} live(s) sem checagem recente: validar worker/API.`);
+
+    if (alerts.length === 0) {
+      alerts.push("Nenhum alerta crítico detectado agora. Manter disciplina e observar edge médio.");
+    }
+
+    return alerts;
+  }, [summary, analysisBoard]);
+
   if (loading) {
     return (
       <div className="dashboard-shell">
@@ -163,6 +239,14 @@ export default function DashboardHome() {
 
       <main className="main-content">
         <Topbar onLogout={handleLogout} />
+
+        <section className={`api-health ${connectionError ? "api-health--bad" : "api-health--good"}`}>
+          <div>
+            <strong>{connectionError ? "Falha de conexão com a API" : "API conectada"}</strong>
+            <p>{connectionError || `Conectado em ${API_BASE_URL}`}</p>
+          </div>
+          <small>Última atualização: {formatDateTime(lastRefreshAt)}</small>
+        </section>
 
         <section className="hero-overview">
           <div className={`hero-primary-card ${getToneClassFromProfit(hero.profit)}`}>
@@ -216,6 +300,74 @@ export default function DashboardHome() {
             <strong>{executiveInsight.title}</strong>
             <p>{executiveInsight.text}</p>
           </div>
+        </section>
+
+        <section className="analysis-command-grid">
+          <article className="analysis-card analysis-card--primary">
+            <span className="analysis-card__label">Score médio das entradas recentes</span>
+            <strong>{formatPercent(analysisBoard.avgScore)}</strong>
+            <small>Combina probabilidade, confiança, edge e status live.</small>
+          </article>
+
+          <article className="analysis-card">
+            <span className="analysis-card__label">Sinais fortes</span>
+            <strong>{analysisBoard.strongSignals}</strong>
+            <small>Score calculado acima de 72%.</small>
+          </article>
+
+          <article className="analysis-card">
+            <span className="analysis-card__label">Value detectado</span>
+            <strong>{analysisBoard.valueSignals}</strong>
+            <small>Entradas recentes com edge positivo.</small>
+          </article>
+
+          <article className={`analysis-card ${analysisBoard.staleLive ? "analysis-card--warning" : ""}`}>
+            <span className="analysis-card__label">Live desatualizado</span>
+            <strong>{analysisBoard.staleLive}</strong>
+            <small>Jogos live sem checagem nos últimos 4 minutos.</small>
+          </article>
+        </section>
+
+        <section className="panel panel--spaced">
+          <div className="panel__header">
+            <div>
+              <h2>Radar de oportunidades</h2>
+              <p>Ranking das previsões recentes pelo score operacional da dashboard.</p>
+            </div>
+          </div>
+
+          <div className="opportunity-list">
+            {analysisBoard.topOpportunities.length === 0 ? (
+              <div className="table-empty">Nenhuma oportunidade recente para analisar.</div>
+            ) : (
+              analysisBoard.topOpportunities.map((item) => (
+                <article className="opportunity-card" key={`opp-${item.id || item.fixture_id}`}>
+                  <div>
+                    <strong>{item.home_team} x {item.away_team}</strong>
+                    <small>{item.league_name || "Liga não informada"} • {formatMarketType(item.market_type)} • {formatPick(item.pick)}</small>
+                  </div>
+                  <div className="opportunity-card__metrics">
+                    <span>Score <b>{formatPercent(item.analysisScore)}</b></span>
+                    <span>Prob. <b>{formatPercent(item.analysisProbability)}</b></span>
+                    <span>Edge <b className={getValueTextClass(item.analysisEdge, true)}>{formatPercent(item.analysisEdge)}</b></span>
+                    <span>Odd <b>{formatOdd(item.analysisOdd)}</b></span>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="risk-panel">
+          <div>
+            <span className="risk-panel__eyebrow">Controle de risco</span>
+            <strong>Leitura automática antes de aumentar exposição</strong>
+          </div>
+          <ul>
+            {riskPanel.map((alert, index) => (
+              <li key={`${alert}-${index}`}>{alert}</li>
+            ))}
+          </ul>
         </section>
 
         <section className="context-strip">
@@ -566,22 +718,9 @@ export default function DashboardHome() {
                 ) : (
                   predictions.map((item) => {
                     const marketType = normalizeMarketType(item.market_type);
-                    const bestProbability =
-                      item.best_probability ??
-                      item.double_chance_probability ??
-                      item.main_market_probability ??
-                      null;
-
-                    const edge =
-                      item.edge ??
-                      item.value_bet_edge ??
-                      item.odds_snapshot?.edge ??
-                      null;
-
-                    const currentOdd =
-                      item.latest_market_odds ??
-                      item.opening_market_odds ??
-                      null;
+                    const bestProbability = getBestProbability(item);
+                    const edge = getPredictionEdge(item);
+                    const currentOdd = getPredictionOdd(item);
 
                     return (
                       <tr key={item.id || item.fixture_id}>
@@ -687,6 +826,43 @@ export default function DashboardHome() {
   );
 }
 
+function getBestProbability(item) {
+  return Number(
+    item?.best_probability ??
+      item?.double_chance_probability ??
+      item?.main_market_probability ??
+      item?.probability ??
+      0
+  );
+}
+
+function getPredictionEdge(item) {
+  return Number(item?.edge ?? item?.value_bet_edge ?? item?.odds_snapshot?.edge ?? 0);
+}
+
+function getPredictionOdd(item) {
+  return Number(
+    item?.latest_market_odds ??
+      item?.current_odd ??
+      item?.opening_market_odds ??
+      item?.odd ??
+      0
+  );
+}
+
+function clamp01(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return Math.max(0, Math.min(1, number));
+}
+
+function minutesSince(value) {
+  if (!value) return Number.POSITIVE_INFINITY;
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) return Number.POSITIVE_INFINITY;
+  return (Date.now() - timestamp) / 60000;
+}
+
 function MetricCard({ title, value, tone = "neutral" }) {
   return (
     <div className={`metric-card metric-card--${tone}`}>
@@ -694,6 +870,14 @@ function MetricCard({ title, value, tone = "neutral" }) {
       <strong className="metric-card__value">{value}</strong>
     </div>
   );
+}
+
+function getConfidenceScore(value) {
+  const text = String(value || "").toLowerCase();
+  if (text.includes("alta") || text.includes("high")) return 100;
+  if (text.includes("média") || text.includes("media") || text.includes("medium")) return 68;
+  if (text.includes("baixa") || text.includes("low")) return 35;
+  return 50;
 }
 
 function getMetricToneByPercentage(value) {
