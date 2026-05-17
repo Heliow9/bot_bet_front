@@ -2,7 +2,7 @@ import axios from "axios";
 
 export const API_BASE_URL =
   import.meta.env.VITE_API_URL ||
-  "https://telegram-bot-agent-6gik.onrender.com";
+  "http://13.220.25.160:8000";
 
 export const DASHBOARD_POLL_INTERVAL_MS = Number(
   import.meta.env.VITE_DASHBOARD_POLL_INTERVAL_MS || 60000
